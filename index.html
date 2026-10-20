@@ -2,8 +2,6 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" href="icon-192.png">
 <title>MoneySafe</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#EEF0F3">
@@ -12,7 +10,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="MoneySafe">
 <meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="data:image/png;base64,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">
+<link rel="icon" type="image/png" href="icon-192.png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -584,7 +584,16 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
     <div class="between"><span>Вибрация при нажатии</span><button class="tgp" role="switch" data-k="hap" onclick="flip(this,'hap','Вибрация')" aria-label="Вибрация при нажатии" style="width:50px;height:30px;border-radius:99px;position:relative;flex-shrink:0"><i style="position:absolute;top:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.22);transition:right .2s"></i></button></div>
     <div class="between"><span>Напомнить за 3 дня до открытия</span><button class="tgp" role="switch" data-k="remind" onclick="flip(this,'remind','Напоминания')" aria-label="Напоминать за 3 дня до открытия" style="width:50px;height:30px;border-radius:99px;position:relative;flex-shrink:0"><i style="position:absolute;top:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.22);transition:right .2s"></i></button></div>
   </div>
-  <button class="btn sec w" style="margin-top:14px" onclick="openSecurity()"><svg class="i"><use href="#shield"/></svg>Как защищены деньги</button>
+  <div class="bd" id="secBd">
+    <div class="between"><span>Код-пароль</span><button class="link" id="pinSetBtn" onclick="setupPin()" style="min-height:44px"></button></div>
+    <div class="between"><span>Блокировать, если свёрнуто дольше</span><select id="lockAfter" class="inp" style="width:auto;height:40px;padding:0 10px"><option value="0">сразу</option><option value="60">1 мин</option><option value="300">5 мин</option><option value="-1">никогда</option></select></div>
+    <div class="muted small" id="bioState"></div>
+  </div>
+  <div class="bd" id="liveBd"><div class="between"><span>Курсы и ставки</span><button class="link" onclick="refreshLive(true)" style="min-height:44px">Обновить</button></div><div class="muted small" id="liveState"></div></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px"><button class="btn sec" onclick="exportData()">Сохранить копию</button><button class="btn sec" onclick="$('#impFile').click()">Восстановить</button></div>
+  <input type="file" id="impFile" accept=".json,application/json" hidden>
+  <button class="btn sec w" id="installBtn" style="margin-top:10px" onclick="installApp()" hidden><svg class="i"><use href="#down"/></svg>Установить на экран телефона</button>
+  <button class="btn sec w" style="margin-top:10px" onclick="openSecurity()"><svg class="i"><use href="#shield"/></svg>Как защищены деньги</button>
   <button class="btn sec w" style="margin-top:10px" onclick="openExport()"><svg class="i"><use href="#key"/></svg>Экспортировать ключ кошелька</button>
   <p class="muted small" style="margin:8px 2px 0">Если MoneySafe перестанет работать, с этим ключом вы откроете сейфы в любом кошельке в дату разблокировки.</p>
   <div id="resetAsk"></div>
@@ -599,6 +608,12 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stro
   <h1 class="disp" style="font-size:30px;margin:0;line-height:1">MoneySafe</h1>
   <p class="muted" style="margin:0">Приложение заблокировано</p>
   <button class="btn pri" id="lockBtn" onclick="unlockApp()" style="min-width:240px"><svg class="i"><use href="#faceid" class="bioic"/></svg><span id="lockLbl">Открыть по Face ID</span></button>
+  <div id="pinBox" hidden style="width:100%;max-width:320px">
+    <div class="otp" id="pinIn"><input type="password" inputmode="numeric" maxlength="1" aria-label="Цифра 1"><input type="password" inputmode="numeric" maxlength="1" aria-label="Цифра 2"><input type="password" inputmode="numeric" maxlength="1" aria-label="Цифра 3"><input type="password" inputmode="numeric" maxlength="1" aria-label="Цифра 4"></div>
+    <div class="err" id="pinErr" style="text-align:center"></div>
+  </div>
+  <div class="err" id="bioErr" style="text-align:center;max-width:320px"></div>
+  <button class="link" id="pinLink" onclick="showPin()" style="min-height:44px" hidden>Ввести код-пароль</button>
   <button class="link" onclick="lockCode()" style="min-height:44px">Войти по коду из письма</button>
 </div>
 <div class="toast glass" id="toast" role="status" aria-live="polite"></div>
@@ -649,7 +664,7 @@ function fresh(){return{v:2,user:null,today:D0,hide:false,unread:1,seq:20,prefs:
 let S;
 function save(){try{localStorage.setItem('moneysafe-mvp-v2',JSON.stringify(S))}catch(e){}}
 function load(){try{const r=localStorage.getItem('moneysafe-mvp-v2');if(r){const o=JSON.parse(r);if(o&&o.v===2)return o}}catch(e){}return fresh()}
-S=load();S.gifts=S.gifts||[];S.ach=S.ach||{};if(S.user)delete S.user.name;S.prefs=S.prefs||{face:true,remind:true};S.prefs.cur=S.prefs.cur||'USD';if(S.prefs.hap===undefined)S.prefs.hap=true;
+S=load();applyLiveSafe();S.gifts=S.gifts||[];S.ach=S.ach||{};if(S.user)delete S.user.name;S.prefs=S.prefs||{face:true,remind:true};S.prefs.cur=S.prefs.cur||'USD';if(S.prefs.hap===undefined)S.prefs.hap=true;
 
 /* time: demo date + real seconds since load (for live yield) */
 const t0=Date.now(); let base=S.today;
@@ -658,6 +673,7 @@ const vEarned=v=>(v.e0||0)+v.q*A[v.c].apy*Math.max(0,Math.min(now(),v.to)-(v.t0|
 const vVal=v=>v.q+vEarned(v);
 const vUsd=v=>vVal(v)*A[v.c].p;
 const live=()=>S.vaults.filter(v=>v.st!=='claimed');
+function applyLiveSafe(){try{applyLive()}catch(e){}}
 const findV=id=>S.vaults.find(x=>x.id==id)||S.gifts.find(x=>x.id==id);
 const walletUsd=()=>ORDER.reduce((a,c)=>a+S.wallet[c]*A[c].p,0);
 const lockedUsd=()=>live().reduce((a,v)=>a+vUsd(v),0);
@@ -760,7 +776,10 @@ function addLog(t,d,a,c,pos,vid,to){S.log.unshift({t,d,a,c,pos:pos?1:0,ts:S.toda
 function note(t,d,ic,vid){S.notes.unshift({t,d,ts:S.today,ic,vid});S.unread++;if(S.notes.length>60)S.notes.length=60}
 let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),2600)}
 function paintTg(b){const on=!!S.prefs[b.dataset.k];b.setAttribute('aria-checked',on);b.style.background=on?'#34C759':'rgba(11,12,15,.14)';b.firstElementChild.style.right=on?'3px':'23px'}
-function flip(b,k,n){buzz(10);S.prefs[k]=!S.prefs[k];save();paintTg(b);toast(n+(S.prefs[k]?': включено':': выключено'))}
+function flip(b,k,n){buzz(10);
+  if(k==='face'&&!S.prefs.face&&BIO_OK&&!S.cred){bioRegister().then(()=>{S.prefs.face=true;save();paintTg(b);paintSec();toast(BIO+' подключён')},()=>toast(BIO+' не подключён — разрешите проверку на телефоне'));return}
+  if(k==='face'&&S.prefs.face){S.cred=null}
+  S.prefs[k]=!S.prefs[k];save();paintTg(b);if(k==='face')paintSec();toast(n+(S.prefs[k]?': включено':': выключено'))}
 function seg(id,list,cur,cb){$('#'+id).innerHTML=list.map(c=>`<button aria-pressed="${c===cur}" data-c="${c}">${c}</button>`).join('');$$('#'+id+' button').forEach(b=>b.onclick=()=>{$$('#'+id+' button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');cb(b.dataset.c)})}
 const setErr=(id,m)=>$('#'+id).textContent=m||'';
 function copyText(v,ok){try{navigator.clipboard.writeText(v).then(()=>toast(ok),()=>toast(v))}catch(e){toast(v)}}
@@ -775,7 +794,7 @@ function openSheet(id){if(cur)cur.classList.remove('on');cur=$('#sh-'+id);cur.cl
 function closeSheet(){if(cur)cur.classList.remove('on');$('#scrim').classList.remove('on');cur=null;vdId=null}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
 function toggleHide(){S.hide=!S.hide;save();renderAll();if(vdId&&cur&&cur.id==='sh-vault')renderVD();toast(S.hide?'Суммы скрыты':'Суммы показаны')}
-function openProfile(){$('#resetAsk').innerHTML='';$$('.tgp').forEach(paintTg);
+function openProfile(){$('#resetAsk').innerHTML='';$$('.tgp').forEach(paintTg);paintSec();$('#installBtn').hidden=standalone()||(!installEvt&&!/^https:/.test(location.protocol));
   seg('pCur',['USD','UZS','RUB'],curC(),c=>{S.prefs.cur=c;save();renderAll();toast({USD:'Суммы в долларах',UZS:'Суммы в сумах · демо-курс 12 650',RUB:'Суммы в рублях · демо-курс 81,4'}[c])});openSheet('profile')}
 function applyBio(){$$('.bio').forEach(e=>e.textContent=BIO);$$('.bioic').forEach(u=>u.setAttribute('href',IOS?'#faceid':'#finger'));$('#lockLbl').textContent=IOS?'Открыть по Face ID':'Открыть по отпечатку'}
 function gen(h){$('#genBody').innerHTML=h;openSheet('gen')}
@@ -787,13 +806,13 @@ function openExport(){if(!S.user.pk){S.user.pk='0x'+hex(64);save()}
   <label class="check"><input type="checkbox" id="kOk"><span>Рядом никого нет, экран никто не видит</span></label>
   <div id="kBox"></div><div class="err" id="kErr"></div>
   <button class="btn pri w" id="kBtn" style="margin-top:12px" onclick="revealKey()"><svg class="i"><use href="${IOS?'#faceid':'#finger'}"/></svg>Показать ключ · ${BIO}</button>`)}
-function revealKey(){if(!$('#kOk').checked)return setErr('kErr','Подтвердите, что рядом никого нет');setErr('kErr');const b=$('#kBtn');b.disabled=true;b.lastChild.textContent='Проверяем '+BIO+'…';
+function revealKey(){if(!$('#kOk').checked)return setErr('kErr','Подтвердите, что рядом никого нет');if(S.cred){requireBio().then(ok=>{if(ok){const c=S.cred;S.cred=null;revealKey();S.cred=c}});return}setErr('kErr');const b=$('#kBtn');b.disabled=true;b.lastChild.textContent='Проверяем '+BIO+'…';
   setTimeout(()=>{buzz(20);$('#kBox').innerHTML=`<div class="keybox blur" id="kTxt" onclick="this.classList.remove('blur')">${S.user.pk}</div><p class="muted small" style="margin:6px 2px 0">Нажмите на ключ, чтобы показать. Демо-ключ, настоящих денег на нём нет.</p>`;
     b.disabled=false;b.innerHTML='<svg class="i"><use href="#copy"/></svg>Скопировать ключ';b.onclick=()=>copyText(S.user.pk,'Ключ скопирован. Очистите буфер после использования')},900)}
 function openCoin(c){const inV=live().filter(v=>v.c===c).reduce((a,v)=>a+vVal(v),0);
   gen(`<div class="between"><div class="row"><span class="coin ${A[c].k}">${A[c].g}</span><h2>${A[c].n}</h2></div>${xBtn}</div>
   <div class="num" style="font-weight:700;font-size:40px;letter-spacing:-.03em;margin-top:16px">${S.hide?'•••':qf(S.wallet[c],c)+' '+c}</div><div class="muted num">${S.hide?'Суммы скрыты':'≈ '+usd(S.wallet[c]*A[c].p)+' в кошельке'}</div>
-  <div class="bd"><div class="between"><span class="muted">Курс</span><span class="num">1 ${c} = ${usd(A[c].p)} · демо</span></div>
+  <div class="bd"><div class="between"><span class="muted">Курс</span><span class="num">1 ${c} = ${usd(A[c].p)} · ${liveNote('p')}</span></div>
   <div class="between"><span class="muted">Доход в Aave</span><span class="num">~${(A[c].apy*100).toFixed(1).replace('.',',')}% годовых</span></div>
   <div class="between"><span class="muted">В сейфах</span><span class="num">${S.hide?'•••':qf(inV,c)+' '+c}</span></div></div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:16px"><button class="btn sec" style="padding:0 8px" onclick="dC='${c}';openDeposit()">Пополнить</button><button class="btn sec" style="padding:0 8px" onclick="sC='${c}';openSend()">Отправить</button><button class="btn pri" style="padding:0 8px" onclick="openNewCoin('${c}')">В сейф</button></div>`)}
@@ -869,7 +888,7 @@ $$('.sheet').forEach(sh=>{let y0=null,dy=0;
   sh.addEventListener('touchmove',e=>{if(y0===null)return;dy=e.touches[0].clientY-y0;if(dy>0){e.preventDefault();sh.style.transition='none';sh.style.transform=`translate(-50%,${dy}px)`}},{passive:false});
   const end=()=>{if(y0===null)return;y0=null;sh.style.transition='';sh.style.transform='';if(dy>90)closeSheet();dy=0};
   sh.addEventListener('touchend',end);sh.addEventListener('touchcancel',end)});
-const sendSlide=makeSlide($('#slide2'),$('#knob2'),$('#sFill2'),()=>true,()=>sendIt());
+const sendSlide=makeSlide($('#slide2'),$('#knob2'),$('#sFill2'),()=>true,()=>requireBio().then(ok=>ok?sendIt():sendSlide.reset()));
 
 /* ---------- new vault ---------- */
 let nT='cushion',nC='USDC',nUnit='coin',nFor='me';
@@ -925,7 +944,8 @@ function toConfirm(){if(!calcNew())return;
   lockSlide.reset();
   $('#nStep1').hidden=true;$('#nStep2').hidden=false;cur.scrollTop=0}
 function backNew(){$('#nStep2').hidden=true;$('#nStep1').hidden=false}
-const lockSlide=makeSlide($('#slide'),$('#knob'),$('#sFill'),()=>true,()=>lockIt());
+const lockSlide=makeSlide($('#slide'),$('#knob'),$('#sFill'),()=>true,()=>requireBio().then(ok=>ok?lockIt():lockSlide.reset()));
+$('#lockAfter').onchange=e=>{S.prefs.lockAfter=+e.target.value;save();toast('Автоблокировка: '+e.target.selectedOptions[0].textContent)};
 let lastNew=null;
 function lockIt(){
   const d=draft;if(!d||d.q>S.wallet[d.c]+1e-9)return;
@@ -1094,7 +1114,7 @@ function aShow(s){$$('.as').forEach(x=>x.hidden=x.dataset.s!==s);window.scrollTo
 let rsT;function startResend(){let n=30;const b=$('#resend');b.disabled=true;clearInterval(rsT);const t=()=>{if(n<=0){b.disabled=false;b.textContent='Отправить код ещё раз';clearInterval(rsT)}else b.textContent='Отправить ещё раз через 0:'+p2(n);n--};t();rsT=setInterval(t,1000)}
 function resendCode(){toast('Новый код отправлен на '+$('#cMail').textContent+'. В демо: 2486');startResend()}
 let lockPending=false;
-function lockCode(){lockPending=true;$('#lockscr').hidden=true;$('#app').hidden=true;$('#tabbar').hidden=true;$('#auth').hidden=false;$('#cMail').textContent=S.user.email||'вашу почту';aShow('code')}
+function lockCode(){lockPending=true;hideLock();$('#app').hidden=true;$('#tabbar').hidden=true;$('#auth').hidden=false;$('#cMail').textContent=S.user.email||'вашу почту';aShow('code')}
 let pending=null;
 function sso(via){pending={via,email:via==='Google'?'':'скрытый email Apple'};makeWallet()}
 function emailNext(){const e=$('#eMail').value.trim();if(!/^\S+@\S+\.\S+$/.test(e))return setErr('eErr','Проверьте email: нужны @ и домен, например you@mail.com');setErr('eErr');$('#cMail').textContent=e;
@@ -1112,15 +1132,91 @@ function logout(){S.user=null;save();closeSheet();$('#app').hidden=true;$('#tabb
 function askReset(){$('#resetAsk').innerHTML=`<div class="warnbox"><b>Сбросить демо-данные?</b><div class="small muted" style="margin:4px 0 12px">Сейфы удалятся, на счёте снова будет 10 000 USDC, дата станет сегодняшней. Вход сохранится.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button class="btn sec s" onclick="$('#resetAsk').innerHTML=''">Отмена</button><button class="btn dark s" onclick="doReset()">Сбросить</button></div></div>`}
 function doReset(){const u=S.user;S=fresh();S.user=u;base=S.today-(Date.now()-t0);cY=undefined;save();closeSheet();go('home');renderAll();toast('Демо-данные сброшены')}
 
+/* ---------- real biometrics (passkey on this device) ---------- */
+const b64u=b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const ub64=t=>Uint8Array.from(atob(t.replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((t.length+3)%4)),c=>c.charCodeAt(0));
+const rnd=n=>crypto.getRandomValues(new Uint8Array(n));
+let BIO_OK=false;
+(async()=>{try{if(window.PublicKeyCredential&&PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable)BIO_OK=await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()}catch(e){}})();
+async function bioRegister(){const c=await navigator.credentials.create({publicKey:{challenge:rnd(32),rp:{name:'MoneySafe'},user:{id:rnd(16),name:'MoneySafe',displayName:'MoneySafe'},
+  pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'preferred'},timeout:60000}});
+  S.cred=b64u(c.rawId);save();return true}
+async function bioVerify(){await navigator.credentials.get({publicKey:{challenge:rnd(32),allowCredentials:[{type:'public-key',id:ub64(S.cred)}],userVerification:'required',timeout:60000}});return true}
+/* ask the phone's Face ID / fingerprint before money moves; falls back to the demo animation where passkeys are unavailable */
+function requireBio(){if(!S.prefs.face||!S.cred)return Promise.resolve(true);return bioVerify().then(()=>true,()=>{toast(BIO+' не подтверждён — действие отменено');return false})}
+/* ---------- PIN ---------- */
+async function pinHash(p){const d=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('moneysafe:'+S.pinSalt+':'+p));return b64u(d)}
+let pinStage=null,pinFirst='';
+function setupPin(){if(S.pinH){S.pinH=null;S.pinSalt=null;save();paintSec();return toast('Код-пароль выключен')}
+  gen(`<div class="between"><h2>Код-пароль</h2>${xBtn}</div><p class="muted" style="margin:8px 0 0">4 цифры. Понадобится, если ${BIO} не сработает.</p>
+  <div class="otp" id="pinNew"><input type="password" inputmode="numeric" maxlength="1" aria-label="Цифра 1"><input type="password" inputmode="numeric" maxlength="1" aria-label="Цифра 2"><input type="password" inputmode="numeric" maxlength="1" aria-label="Цифра 3"><input type="password" inputmode="numeric" maxlength="1" aria-label="Цифра 4"></div>
+  <div class="muted small" id="pinStep" style="text-align:center;margin-top:10px">Придумайте код</div><div class="err" id="pinNErr" style="text-align:center"></div>`);
+  pinFirst='';wireOtp('#pinNew input',async code=>{if(!pinFirst){pinFirst=code;$('#pinStep').textContent='Повторите код';return 'clear'}
+    if(code!==pinFirst){pinFirst='';$('#pinStep').textContent='Придумайте код';setErr('pinNErr','Коды не совпали. Попробуйте ещё раз');return 'clear'}
+    S.pinSalt=b64u(rnd(12));S.pinH=await pinHash(code);S.pinTries=0;save();closeSheet();paintSec();toast('Код-пароль установлен')});setTimeout(()=>$('#pinNew input').focus(),480)}
+function wireOtp(sel,done){const all=$$(sel);all.forEach((inp,i)=>{inp.value='';inp.oninput=async()=>{inp.value=inp.value.replace(/\D/g,'').slice(-1);if(inp.value&&i<all.length-1)all[i+1].focus();
+  const code=all.map(x=>x.value).join('');if(code.length===all.length){const r=await done(code);if(r==='clear'){all.forEach(x=>x.value='');all[0].focus()}}};
+  inp.onkeydown=e=>{if(e.key==='Backspace'&&!inp.value&&i>0)all[i-1].focus()}})}
+function showPin(){$('#pinBox').hidden=false;$('#pinLink').hidden=true;setErr('pinErr');wireOtp('#pinIn input',async code=>{
+  if(S.pinWait&&Date.now()<S.pinWait){setErr('pinErr','Слишком много попыток. Подождите '+Math.ceil((S.pinWait-Date.now())/1000)+' с');return 'clear'}
+  if(await pinHash(code)===S.pinH){S.pinTries=0;save();buzz(15);hideLock();return}
+  S.pinTries=(S.pinTries||0)+1;buzz([30,40,30]);if(S.pinTries>=5){S.pinWait=Date.now()+30000;S.pinTries=0}save();
+  setErr('pinErr',S.pinWait&&Date.now()<S.pinWait?'Неверный код. Вход заблокирован на 30 секунд':'Неверный код. Осталось попыток: '+(5-S.pinTries));$('#pinIn').classList.remove('shake');void $('#pinIn').offsetWidth;$('#pinIn').classList.add('shake');return 'clear'});
+  setTimeout(()=>$('#pinIn input').focus(),50)}
+const lockOn=()=>!!(S.user&&(S.prefs.face||S.pinH));
+function showLock(){if(!lockOn())return;closeSheet();$('#lockscr').hidden=false;$('#pinBox').hidden=true;$('#pinLink').hidden=!S.pinH;setErr('bioErr');$('#lockBtn').hidden=!S.prefs.face;if(!S.prefs.face&&S.pinH)showPin()}
+function hideLock(){$('#lockscr').hidden=true;$('#pinBox').hidden=true}
+let hiddenAt=0;
+document.addEventListener('visibilitychange',()=>{if(document.hidden){hiddenAt=Date.now();return}const a=S.prefs.lockAfter??60;if(a>=0&&hiddenAt&&Date.now()-hiddenAt>=a*1000&&$('#lockscr').hidden)showLock()});
+function paintSec(){$('#pinSetBtn').textContent=S.pinH?'Выключить':'Установить';$('#lockAfter').value=String(S.prefs.lockAfter??60);
+  $('#bioState').textContent=S.cred?BIO+' этого телефона подключён — он проверяется при входе и перед переводами.':BIO_OK?'Включите «'+BIO+'» выше, чтобы подключить настоящую проверку этого телефона.':'В этом окне системная проверка '+BIO+' недоступна — работает демо-режим. В браузере по ссылке она включится.';
+  paintLive()}
+
+/* ---------- live prices, FX and Aave rates ---------- */
+const AAVE_BASE={pool:'0xA238Dd80C259a72e81d7e4664a9801593F98d1c5',assets:{USDC:'0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',USDT:'0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2',ETH:'0x4200000000000000000000000000000000000006',WBTC:'0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf'}};
+const tfetch=(u,o={},ms=7000)=>{const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);return fetch(u,{...o,signal:c.signal}).finally(()=>clearTimeout(t))};
+function applyLive(){const L=S.live||{};if(L.p)ORDER.forEach(c=>{if(L.p[c]>0)A[c].p=L.p[c]});if(L.fx){if(L.fx.UZS>0)CUR.UZS.r=L.fx.UZS;if(L.fx.RUB>0)CUR.RUB.r=L.fx.RUB}if(L.apy)ORDER.forEach(c=>{if(L.apy[c]>0&&L.apy[c]<.3)A[c].apy=L.apy[c]})}
+async function rateOf(c){const data='0x35ea6a75'+AAVE_BASE.assets[c].slice(2).toLowerCase().padStart(64,'0');
+  const r=await tfetch('https://mainnet.base.org',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_call',params:[{to:AAVE_BASE.pool,data},'latest']})});
+  const j=await r.json();const h=(j.result||'').slice(2);if(h.length<192)return 0;const ray=Number(BigInt('0x'+h.slice(128,192)))/1e27;if(!(ray>0))return 0;return Math.pow(1+ray/31536000,31536000)-1}
+async function refreshLive(manual){const L=S.live||{};let ok=0;
+  try{const j=await (await tfetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum,bitcoin,usd-coin,tether&vs_currencies=usd')).json();
+    L.p={USDC:j['usd-coin']?.usd,USDT:j.tether?.usd,ETH:j.ethereum?.usd,WBTC:j.bitcoin?.usd};L.pts=Date.now();ok++}catch(e){}
+  try{const j=await (await tfetch('https://open.er-api.com/v6/latest/USD')).json();if(j.rates){L.fx={UZS:j.rates.UZS,RUB:j.rates.RUB};L.fts=Date.now();ok++}}catch(e){}
+  try{const a={};for(const c of ORDER){try{a[c]=await rateOf(c)}catch(e){}}if(Object.values(a).some(x=>x>0)){L.apy=a;L.ats=Date.now();ok++}}catch(e){}
+  S.live=L;applyLive();save();if($('#app')&&!$('#app').hidden)renderAll();paintLive();if(manual)toast(ok?'Курсы и ставки обновлены':'Нет связи — показаны последние сохранённые данные')}
+const hm=t=>new Date(t).toLocaleString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+function liveNote(kind){const L=S.live||{},t={p:L.pts,f:L.fts,a:L.ats}[kind];return t?'обновлено '+hm(t):'демо'}
+function paintLive(){const L=S.live||{};if(!$('#liveState'))return;
+  $('#liveState').innerHTML=`Курсы монет: ${L.pts?'CoinGecko, '+hm(L.pts):'демо-значения'}<br>Сум и рубль: ${L.fts?'ExchangeRate-API, '+hm(L.fts):'демо-курс'}<br>Ставки Aave V3 (Base): ${L.ats?hm(L.ats):'примерные'}`}
+
+/* ---------- install & offline ---------- */
+let installEvt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;if($('#installBtn'))$('#installBtn').hidden=false});
+const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+function installApp(){if(installEvt){installEvt.prompt();installEvt.userChoice.then(()=>{installEvt=null;$('#installBtn').hidden=true});return}
+  gen(`<div class="between"><h2>Установить на экран</h2>${xBtn}</div>${IOS?`<div class="sec-li"><b>1</b><div>Откройте MoneySafe в <b>Safari</b> по ссылке.</div></div><div class="sec-li"><b>2</b><div>Нажмите «Поделиться» — квадрат со стрелкой внизу экрана.</div></div><div class="sec-li"><b>3</b><div>Выберите «На экран Домой» и нажмите «Добавить».</div></div>`
+  :`<div class="sec-li"><b>1</b><div>Откройте MoneySafe в <b>Chrome</b> по ссылке.</div></div><div class="sec-li"><b>2</b><div>Нажмите ⋮ в правом верхнем углу.</div></div><div class="sec-li"><b>3</b><div>Выберите «Установить приложение» или «Добавить на главный экран».</div></div>`}<p class="muted small" style="margin-top:8px">После установки MoneySafe открывается с иконки на весь экран и работает без интернета.</p>`)}
+if('serviceWorker' in navigator&&location.protocol==='https:'&&window.top===window&&!/claude\.ai|claudeusercontent/.test(location.host))navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+/* ---------- backup ---------- */
+function exportData(){const name='moneysafe-backup-'+iso(Date.now())+'.json',blob=new Blob([JSON.stringify(S)],{type:'application/json'});
+  if(DL)return DL.save({filename:name,data:blob}).then(()=>toast('Копия сохранена'),e=>{if(e&&e.code!=='declined')toast('Не удалось сохранить файл')});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();toast('Копия сохранена. В ней есть ключ кошелька — храните файл в надёжном месте')}
+$('#impFile').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{const o=JSON.parse(t);if(!o||o.v!==2||!o.wallet||!Array.isArray(o.vaults))throw 0;
+  S=o;S.gifts=S.gifts||[];S.ach=S.ach||{};S.prefs=S.prefs||{face:false,remind:true,cur:'USD',hap:true};base=S.today-(Date.now()-t0);cY=undefined;save();closeSheet();go('home');renderAll();toast('Данные восстановлены')}).catch(()=>toast('Это не копия MoneySafe'));e.target.value=''};
+
 /* ---------- app lock ---------- */
-function unlockApp(){buzz(15);const f=$('#lockFace');f.className='face glass scan';$('#lockBtn').disabled=true;
+function unlockApp(){buzz(15);const f=$('#lockFace');setErr('bioErr');
+  if(S.cred){$('#lockBtn').disabled=true;f.className='face glass scan';bioVerify().then(()=>{f.className='face glass';$('#lockBtn').disabled=false;hideLock();buzz(15)},()=>{f.className='face glass';$('#lockBtn').disabled=false;setErr('bioErr',BIO+' не подтверждён. Попробуйте ещё раз'+(S.pinH?' или введите код-пароль':' или войдите по коду из письма'));if(S.pinH)showPin()});return}
+  f.className='face glass scan';$('#lockBtn').disabled=true;
   setTimeout(()=>{f.className='face glass ok';f.innerHTML='<svg class="i"><use href="#check"/></svg>';setTimeout(()=>{$('#lockscr').hidden=true;f.className='face glass';f.innerHTML='<svg class="i"><use href="'+(IOS?'#faceid':'#finger')+'"/></svg>';$('#lockBtn').disabled=false},450)},900)}
 $$('#hF button').forEach(b=>b.onclick=()=>{$$('#hF button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');histF=b.dataset.f;renderLog()});
 
 /* ---------- start ---------- */
 base=S.today-0;
 setInterval(()=>{if(!$('#app').hidden)renderLive()},250);
-if(S.user){$('#auth').hidden=true;$('#app').hidden=false;$('#tabbar').hidden=false;checkUnlocks(false);renderAll();if(S.prefs.face)$('#lockscr').hidden=false}else aShow('welcome');
+if(S.user){$('#auth').hidden=true;$('#app').hidden=false;$('#tabbar').hidden=false;checkUnlocks(false);renderAll();showLock()}else aShow('welcome');
+applyLive();refreshLive(false);setInterval(()=>refreshLive(false),5*60*1000);
 </script>
 
 </body>
