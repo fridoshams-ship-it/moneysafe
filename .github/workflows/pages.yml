@@ -1,7 +1,7 @@
 name: Web app → GitHub Pages
 # Settings → Pages → Source: "GitHub Actions".
 # Optional repository variable REOWN_PROJECT_ID (Settings → Secrets and variables → Actions → Variables) enables WalletConnect,
-# Google/Apple/email sign-in in the testnet mode.
+# Google/Apple/email sign-in in the testnet mode. Optional variable MS_API = backend URL (anonymous analytics).
 on:
   push:
     branches: [main]
@@ -24,6 +24,7 @@ jobs:
       - run: npm run build
         env:
           VITE_REOWN_PROJECT_ID: ${{ vars.REOWN_PROJECT_ID }}
+          VITE_MS_API: ${{ vars.MS_API }}
       - uses: actions/upload-pages-artifact@v3
         with: { path: web/dist }
   deploy:

@@ -686,7 +686,7 @@ function trTree(root){if(!root)return;if(root.nodeType===3)return trText(root);i
   const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT|NodeFilter.SHOW_ELEMENT,{acceptNode:x=>x.nodeType===1&&(x.tagName==='SCRIPT'||x.tagName==='STYLE')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT});
   let x;while(x=w.nextNode()){x.nodeType===3?trText(x):trEl(x)}}
 const trObs=new MutationObserver(ms=>{for(const m of ms){if(m.type==='characterData')trText(m.target);else if(m.type==='attributes')trEl(m.target);else m.addedNodes.forEach(trTree)}});
-function setLang(l){LANG=l;document.documentElement.lang=l;buildRx();trTree(document.body);if(S){S.prefs.lang=l;save();if(S.user&&!$('#app').hidden)renderAll()}}
+function setLang(l){LANG=l;track('lang.'+l);document.documentElement.lang=l;buildRx();trTree(document.body);if(S){S.prefs.lang=l;save();if(S.user&&!$('#app').hidden)renderAll()}}
 trObs.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:TA});
 const MODE=(()=>{try{return localStorage.getItem('moneysafe-mode')||'demo'}catch(e){return 'demo'}})(),CHAIN=MODE==='chain',SKEY=CHAIN?'moneysafe-chain-v2':'moneysafe-mvp-v2';
 let S;
@@ -814,10 +814,10 @@ function copyText(v,ok){try{navigator.clipboard.writeText(v).then(()=>toast(ok),
 function copyAddr(){copyText(S.user.addr,'Адрес скопирован: '+short(S.user.addr))}
 
 /* ---------- nav & sheets ---------- */
-function go(v){$$('.view').forEach(s=>s.hidden=s.id!=='v-'+v);$$('.tab').forEach(t=>t.classList.toggle('on',t.dataset.v===v));window.scrollTo({top:0})}
+function go(v){track('screen.'+v);$$('.view').forEach(s=>s.hidden=s.id!=='v-'+v);$$('.tab').forEach(t=>t.classList.toggle('on',t.dataset.v===v));window.scrollTo({top:0})}
 $$('.tab').forEach(t=>t.onclick=()=>go(t.dataset.v));
 let cur=null;
-function openSheet(id){if(cur)cur.classList.remove('on');cur=$('#sh-'+id);cur.classList.add('on');$('#scrim').classList.add('on');if(id==='notif'){S.unread=0;save();renderNotes();renderHead()}
+function openSheet(id){track('sheet.'+id);if(cur)cur.classList.remove('on');cur=$('#sh-'+id);cur.classList.add('on');$('#scrim').classList.add('on');if(id==='notif'){S.unread=0;save();renderNotes();renderHead()}
   setTimeout(()=>{const f=cur&&cur.querySelector('.x');if(f)f.focus({preventScroll:true})},430)}
 function closeSheet(){if(cur)cur.classList.remove('on');$('#scrim').classList.remove('on');cur=null;vdId=null}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
@@ -961,7 +961,7 @@ function calcNew(){
   setErr('nErr',e);$('#nTopup').hidden=!(q>S.wallet[nC]+1e-9);return!e}
 function topupFromNew(){backToNew={n:$('#nName').value,c:nC,q:String(nQ()),d:$('#nDate').value};dC=nC;openDeposit();const need=num(backToNew.q)-S.wallet[nC];if(need>0)$('#dAmt').value=+need.toFixed(A[nC].dp);calcDep()}
 let draft=null;
-function toConfirm(){if(!calcNew())return;
+function toConfirm(){if(!calcNew())return;track('vault.review',{coin:nC,gift:nFor==='gift'});
   const q=nQ(),t=piso($('#nDate').value),days=Math.round((t-S.today)/DAY),gift=nFor==='gift';
   draft={n:$('#nName').value.trim(),tpl:nT,c:nC,q,to:t,days,goal:num($('#nTarget').value)||0,gift,toAddr:gift?$('#nTo').value.trim():null,toName:gift?$('#nToName').value.trim():''};
   $('#cGiftRow').hidden=!gift;if(gift)$('#cTo').textContent=(draft.toName?draft.toName+' · ':'')+short(draft.toAddr);
@@ -985,7 +985,7 @@ function lockIt(){
   const v={id:++S.seq,n:d.n,tpl:d.tpl,c:d.c,q:d.q,from:now(),to:d.to,addr:'0x'+hex(40),st:'locked',fresh:1,goal:d.goal||undefined};
   if(d.gift){v.gift=1;v.toAddr=d.toAddr;v.toName=d.toName;S.gifts.unshift(v);addLog('Подарок отправлен',d.n+' · '+(d.toName||short(d.toAddr)),`−${qf(d.q,d.c)} ${d.c}`,d.c,0,v.id,d.toAddr);note('Подарок «'+d.n+'» заблокирован','Получатель заберёт '+dfmt(d.to),'gift',v.id)}
   else{S.vaults.unshift(v);addLog('Сейф создан',d.n,`−${qf(d.q,d.c)} ${d.c}`,d.c,0,v.id);note('Сейф «'+d.n+'» создан','Откроется '+dfmt(d.to),'lock',v.id)}
-  lastNew=v.id;buzz(25);save();
+  lastNew=v.id;buzz(25);save();track('vault.created',{coin:d.c,gift:!!d.gift,days:d.days});
   setTimeout(()=>{$('#pTitle').textContent=(d.gift?'Подарок откроется ':'Заблокировано до ')+dfmt(d.to);$('#pAddr').textContent=short(v.addr)+' · демо';$('#pDone').hidden=false;renderAll()},2100);
 }
 function shareFromDone(){if(lastNew)openShare(lastNew)}
@@ -1156,7 +1156,7 @@ function makeWallet(){aShow('wallet');pending.addr='0x'+hex(40);$('#wS1').textCo
   [0,1,2].forEach(i=>{setTimeout(()=>st[i].className='step run',i*600);setTimeout(()=>st[i].className='step done',i*600+500)});
   setTimeout(()=>{$('#wTitle').textContent='Готово';$('#wAddr').textContent='Ваш адрес: '+short(pending.addr)},1800);
   setTimeout(enterApp,2600)}
-function enterApp(){S.user=pending||S.user;save();$('#auth').hidden=true;$('#app').hidden=false;$('#tabbar').hidden=false;go('home');checkUnlocks(false);renderAll();toast('Добро пожаловать в MoneySafe');if(!S.seenIntro)setTimeout(()=>showIntro(0),500)}
+function enterApp(){track('login',{via:(pending&&pending.via)||''});S.user=pending||S.user;save();$('#auth').hidden=true;$('#app').hidden=false;$('#tabbar').hidden=false;go('home');checkUnlocks(false);renderAll();toast('Добро пожаловать в MoneySafe');if(!S.seenIntro)setTimeout(()=>showIntro(0),500)}
 function logout(){if(CHAIN&&window.MSChain)MSChain.disconnect();S.user=null;save();closeSheet();$('#app').hidden=true;$('#tabbar').hidden=true;$('#auth').hidden=false;aShow('welcome')}
 function askReset(){$('#resetAsk').innerHTML=`<div class="warnbox"><b>Сбросить демо-данные?</b><div class="small muted" style="margin:4px 0 12px">Сейфы удалятся, на счёте снова будет 10 000 USDC, дата станет сегодняшней. Вход сохранится.</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button class="btn sec s" onclick="$('#resetAsk').innerHTML=''">Отмена</button><button class="btn dark s" onclick="doReset()">Сбросить</button></div></div>`}
 function doReset(){const u=S.user;S=fresh();S.user=u;base=S.today-(Date.now()-t0);cY=undefined;save();closeSheet();go('home');renderAll();toast('Демо-данные сброшены')}
@@ -1234,6 +1234,12 @@ function exportData(){const name='moneysafe-backup-'+iso(Date.now())+'.json',blo
 $('#impFile').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{const o=JSON.parse(t);if(!o||o.v!==2||!o.wallet||!Array.isArray(o.vaults))throw 0;
   S=o;S.gifts=S.gifts||[];S.ach=S.ach||{};S.prefs=S.prefs||{face:false,remind:true,cur:'USD',hap:true};base=S.today-(Date.now()-t0);cY=undefined;save();closeSheet();go('home');renderAll();toast('Данные восстановлены')}).catch(()=>toast('Это не копия MoneySafe'));e.target.value=''};
 
+/* ---------- anonymous product analytics (no addresses, no emails); only when MS_API is configured ---------- */
+const SID=Math.random().toString(36).slice(2,12);let trq=[],trT=null;
+function track(name,props){try{if(!window.MS_API)return;trq.push({name,session:SID,props:{mode:MODE,lang:LANG,...(props||{})}});clearTimeout(trT);trT=setTimeout(flushTrack,1500)}catch(e){}}
+function flushTrack(){if(!trq.length||!window.MS_API)return;const b=JSON.stringify(trq.splice(0,50));try{if(!(navigator.sendBeacon&&navigator.sendBeacon(MS_API.replace(/\/$/,'')+'/v1/analytics',new Blob([b],{type:'application/json'}))))fetch(MS_API.replace(/\/$/,'')+'/v1/analytics',{method:'POST',headers:{'content-type':'application/json'},body:b,keepalive:true}).catch(()=>{})}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)flushTrack()});
+
 /* ---------- testnet / blockchain mode ---------- */
 const chainErr=e=>{const m=String(e&&(e.shortMessage||e.message)||e);if(/NO_PROJECT_ID/.test(m))return 'Вход через WalletConnect ещё не настроен';if(/reject|denied|cancel/i.test(m))return 'Вы отменили действие в кошельке';if(/insufficient funds|gas/i.test(m))return 'Не хватает тестового ETH для оплаты газа';if(/FaucetCooldown/.test(m))return 'Тестовые токены можно получать раз в сутки';return 'Транзакция не прошла: '+m.slice(0,120)};
 let syncing=false,lastSyncErr=0;
@@ -1263,7 +1269,7 @@ async function chainLock(d){if(needGas())return lockSlide.reset();
     const M=S.meta||(S.meta={}),id=++S.seq;M[r.vault.toLowerCase()]={id,tpl:d.tpl,goal:d.goal||undefined,toName:d.toName};lastNew=id;buzz(25);
     if(d.gift){addLog('Подарок отправлен',d.n+' · '+(d.toName||short(d.toAddr)),`−${qf(d.q,d.c)} ${d.c}`,d.c,0,id,d.toAddr);note('Подарок «'+d.n+'» заблокирован','Получатель заберёт '+dfmt(d.to),'gift',id)}
     else{addLog('Сейф создан',d.n,`−${qf(d.q,d.c)} ${d.c}`,d.c,0,id);note('Сейф «'+d.n+'» создан','Откроется '+dfmt(d.to),'lock',id)}
-    realLog(r.hash);save();await syncChain();
+    realLog(r.hash);save();track('vault.created',{coin:d.c,gift:!!d.gift,days:d.days});await syncChain();
     $('#pTitle').textContent=(d.gift?'Подарок откроется ':'Заблокировано до ')+dfmt(d.to);$('#pAddr').textContent=short(r.vault);$('#pDone').hidden=false}
   catch(e){st.forEach(x=>{if(x.className==='step run')x.className='step'});$('#pTitle').textContent='Сейф не создан';setErr('pErr',chainErr(e));$('#pRetry').hidden=false}}
 async function chainSend(d){if(needGas())return sendSlide.reset();

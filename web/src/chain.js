@@ -192,6 +192,7 @@ const MSChain = {
   addrUrl(a) { return EXPLORER[D?.chainId] ? EXPLORER[D.chainId] + '/address/' + a : '' },
 }
 
+if (!globalThis.MS_API && import.meta.env.VITE_MS_API) globalThis.MS_API = import.meta.env.VITE_MS_API
 globalThis.MSChain = MSChain
 globalThis.dispatchEvent?.(new Event('mschain-ready'))
 export default MSChain
