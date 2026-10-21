@@ -1,0 +1,7 @@
+{
+  "appId": "uz.moneysafe.app",
+  "appName": "MoneySafe",
+  "webDir": "dist",
+  "android": { "allowMixedContent": false },
+  "server": { "androidScheme": "https" }
+}

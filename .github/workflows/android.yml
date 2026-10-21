@@ -1,0 +1,43 @@
+name: Android APK
+# Builds an installable APK from web/ on every change and publishes it to the "android-latest" release:
+# https://github.com/<owner>/moneysafe/releases/tag/android-latest
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", "contracts/deployments/**", ".github/workflows/android.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: { group: android, cancel-in-progress: true }
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: web } }
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 1.0.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_REOWN_PROJECT_ID: ${{ vars.REOWN_PROJECT_ID }}
+          VITE_MS_API: ${{ vars.MS_API }}
+      - run: npx cap sync android
+      - name: Build APK
+        working-directory: web/android
+        run: chmod +x gradlew && ./gradlew --no-daemon assembleDebug
+      - name: Rename
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk MoneySafe.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: MoneySafe-apk, path: web/MoneySafe.apk }
+      - name: Publish to release android-latest
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh release view android-latest >/dev/null 2>&1 || gh release create android-latest --title "MoneySafe для Android" --notes "Тестовая сборка. Скачайте MoneySafe.apk и установите на телефон (разрешите установку из этого источника)."
+          gh release upload android-latest MoneySafe.apk --clobber
+          gh release edit android-latest --notes "Тестовая сборка ${VERSION_NAME}. Скачайте MoneySafe.apk и установите на телефон Android (разрешите установку из этого источника). Демо-режим работает сразу."
