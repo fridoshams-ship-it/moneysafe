@@ -1,0 +1,22 @@
+{
+  "name": "moneysafe-contracts",
+  "version": "1.0.0",
+  "description": "MoneySafe time-locked vault contracts (Aave V3 + Compound III, Polygon + Arbitrum)",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.js",
+    "deploy:testnet": "hardhat run scripts/deploy-testnet.js"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
+    "@openzeppelin/contracts": "^5.1.0",
+    "chai": "^4.5.0",
+    "ethers": "^6.13.4",
+    "hardhat": "^2.22.17",
+    "solc": "0.8.24"
+  }
+}

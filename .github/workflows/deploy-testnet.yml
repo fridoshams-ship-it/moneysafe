@@ -1,0 +1,35 @@
+name: Deploy testnet
+# Manual: Actions → "Deploy testnet" → Run workflow.
+# Needs repository secrets: DEPLOYER_KEY (a NEW wallet used only for testnet) and ARB_SEPOLIA_RPC (or AMOY_RPC).
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: "arbitrumSepolia or polygonAmoy"
+        default: arbitrumSepolia
+        required: true
+permissions:
+  contents: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: contracts } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: contracts/package-lock.json }
+      - run: npm ci
+      - run: npx hardhat test
+      - name: Deploy test tokens, market and factory
+        env:
+          DEPLOYER_KEY: ${{ secrets.DEPLOYER_KEY }}
+          ARB_SEPOLIA_RPC: ${{ secrets.ARB_SEPOLIA_RPC }}
+          AMOY_RPC: ${{ secrets.AMOY_RPC }}
+        run: npx hardhat run scripts/deploy-testnet.js --network ${{ inputs.network }}
+      - name: Save addresses to the repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deployments
+          git commit -m "Testnet deployment: ${{ inputs.network }}" || echo "nothing to commit"
+          git push
