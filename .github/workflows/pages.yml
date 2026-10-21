@@ -1,0 +1,35 @@
+name: Web app → GitHub Pages
+# Settings → Pages → Source: "GitHub Actions".
+# Optional repository variable REOWN_PROJECT_ID (Settings → Secrets and variables → Actions → Variables) enables WalletConnect,
+# Google/Apple/email sign-in in the testnet mode.
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", "contracts/deployments/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency: { group: pages, cancel-in-progress: true }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_REOWN_PROJECT_ID: ${{ vars.REOWN_PROJECT_ID }}
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: web/dist }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: "${{ steps.d.outputs.page_url }}" }
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4

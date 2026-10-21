@@ -1,0 +1,22 @@
+{
+  "name": "moneysafe-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs && vite build",
+    "dev": "node build.mjs && vite"
+  },
+  "dependencies": {
+    "@reown/appkit": "1.8.24",
+    "@reown/appkit-adapter-wagmi": "1.8.24",
+    "@tanstack/react-query": "5.59.0",
+    "@wagmi/core": "3.6.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "viem": "2.57.3",
+    "wagmi": "3.7.7"
+  },
+  "devDependencies": {
+    "vite": "8.3.2"
+  }
+}
