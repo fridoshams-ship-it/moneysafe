@@ -27,6 +27,6 @@ jobs:
         env:
           FORK_URL: ${{ secrets.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc' }}
       - name: Mainnet deploy script on the fork (dry run)
-        run: MS_CONFIG=arbitrum MS_OUT=fork-dryrun npx hardhat run scripts/deploy.js --network hardhat && cat deployments/fork-dryrun.json
+        run: MS_CONFIG=arbitrum MS_OUT=fork-dryrun npx hardhat run scripts/deploy.js --network hardhat && echo "::notice title=Dry-run deploy::$(tr -d '\n ' < deployments/fork-dryrun.json | cut -c1-900)"
         env:
           FORK_URL: ${{ secrets.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc' }}

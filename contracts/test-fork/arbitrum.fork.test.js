@@ -58,10 +58,12 @@ const ERC20 = ["function balanceOf(address) view returns (uint256)", "function a
         await (await vault.connect(user).withdraw()).wait();
         const got = (await token.balanceOf(user.address)) - before;
         expect(got).to.be.gt(amt);
-        console.log(`      ${label} ${sym}: in ${ethers.formatUnits(amt, sym === "WETH" ? 18 : 6)} → out ${ethers.formatUnits(got, sym === "WETH" ? 18 : 6)} after 30 days`);
+        console.log(`::notice title=Fork ${label} ${sym}::${label} ${sym}: in ${ethers.formatUnits(amt, sym === "WETH" ? 18 : 6)} → out ${ethers.formatUnits(got, sym === "WETH" ? 18 : 6)} after 30 days`);
       });
     }
   }
+
+  after(function () { if (process.env.GITHUB_ACTIONS) console.log("::notice title=Fork::fork tests ran against block " + this.currentTest?.parent?.title) })
 
   it("Aave WBTC can be switched on (listed reserve)", async function () {
     expect(await f.aTokenOf(A.WBTC)).to.not.equal(ethers.ZeroAddress);
