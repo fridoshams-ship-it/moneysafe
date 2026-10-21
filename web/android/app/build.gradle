@@ -16,7 +16,19 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Fixed TEST signing key so new test builds install over old ones. Not for Google Play: the store build gets its own secret key.
+    signingConfigs {
+        test {
+            storeFile file("moneysafe-test.keystore")
+            storePassword "moneysafe-test"
+            keyAlias "moneysafe-test"
+            keyPassword "moneysafe-test"
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig signingConfigs.test
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
