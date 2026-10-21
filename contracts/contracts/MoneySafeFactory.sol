@@ -8,6 +8,7 @@ import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step
 import {IPool} from "./interfaces/IPool.sol";
 import {IComet} from "./interfaces/IComet.sol";
 import {MoneySafeVault} from "./MoneySafeVault.sol";
+import {MoneySafeAllowance} from "./MoneySafeAllowance.sol";
 
 /// @title MoneySafeFactory
 /// @notice Creates a separate MoneySafeVault contract for every safe a user opens.
@@ -25,6 +26,8 @@ contract MoneySafeFactory is Ownable2Step {
 
     IPool public immutable pool;
     address public immutable vaultImplementation;
+    address public immutable allowanceImplementation;
+    uint64 public constant MAX_START_DELAY = 365 days;
 
     bool public depositsPaused;
     /// @notice Aave: asset => aToken (zero = not allowed).
@@ -37,6 +40,8 @@ contract MoneySafeFactory is Ownable2Step {
     mapping(address asset => uint256) public vaultCap;
     mapping(address vault => bool) public isVault;
     mapping(address user => address[]) private _vaultsOf;
+    mapping(address allowance => bool) public isAllowance;
+    mapping(address user => address[]) private _allowancesOf;
 
     event AssetSet(address indexed asset, uint8 indexed protocol, address market, bool allowed);
     event DepositsPaused(bool paused);
@@ -45,6 +50,8 @@ contract MoneySafeFactory is Ownable2Step {
     event VaultMarket(address indexed vault, uint8 protocol, address market);
     event VaultGifted(address indexed from, address indexed recipient, address indexed vault);
     event VaultToppedUp(address indexed vault, address indexed from, uint256 amount);
+    event AllowanceCreated(address indexed owner, address indexed allowance, address indexed asset, uint256 amount, uint256 rate, uint64 period, uint64 start, string goal);
+    event AllowanceToppedUp(address indexed allowance, address indexed from, uint256 amount);
 
     error DepositsArePaused();
     error AssetNotAllowed();
@@ -58,12 +65,16 @@ contract MoneySafeFactory is Ownable2Step {
     error BadProtocol();
     error NoCometMarket();
     error AboveVaultCap();
+    error BadPeriod();
+    error BadStart();
+    error RateAboveAmount();
 
     /// @param pool_ Aave V3 Pool of this chain (zero if Aave is not used on this chain).
     /// @param comets_ Compound III markets of this chain. Each one's base token becomes a possible asset.
     constructor(IPool pool_, address[] memory comets_, address owner_) Ownable(owner_) {
         pool = pool_;
         vaultImplementation = address(new MoneySafeVault());
+        allowanceImplementation = address(new MoneySafeAllowance());
         for (uint256 i; i < comets_.length; ++i) {
             address base = IComet(comets_[i]).baseToken();
             cometMarketOf[base] = comets_[i];
@@ -193,6 +204,69 @@ contract MoneySafeFactory is Ownable2Step {
         v.asset().safeTransferFrom(msg.sender, vault, amount);
         v.supplyIdle();
         emit VaultToppedUp(vault, msg.sender, amount);
+    }
+
+    // ---------- money for every day ----------
+
+    /// @notice Opens a budget: `amount` is released `rate` per `period` (1 day or 7 days), the first portion at `start`.
+    /// @param start_ 0 = now; otherwise a moment within the next year.
+    function createAllowance(uint8 protocol, address asset, uint256 amount, uint256 rate, uint64 period, uint64 start_, string calldata goal)
+        external
+        returns (address allowance)
+    {
+        if (depositsPaused) revert DepositsArePaused();
+        if (amount == 0 || rate == 0) revert ZeroAmount();
+        if (rate > amount) revert RateAboveAmount();
+        uint256 cap = vaultCap[asset];
+        if (cap != 0 && amount > cap) revert AboveVaultCap();
+        if (period != 1 days && period != 7 days) revert BadPeriod();
+        uint64 st = start_ == 0 ? uint64(block.timestamp) : start_;
+        if (st < block.timestamp || st > block.timestamp + MAX_START_DELAY) revert BadStart();
+        if (bytes(goal).length > MAX_GOAL_BYTES) revert GoalTooLong();
+
+        allowance = _deployAllowance(protocol, asset, rate, period, st);
+        _allowancesOf[msg.sender].push(allowance);
+
+        IERC20(asset).safeTransferFrom(msg.sender, allowance, amount);
+        MoneySafeAllowance(allowance).supplyIdle();
+        emit AllowanceCreated(msg.sender, allowance, asset, amount, rate, period, st, goal);
+    }
+
+    /// @notice Adds money to a budget. It is released after what is already scheduled, at the same rate.
+    function topUpAllowance(address allowance, uint256 amount) external {
+        if (depositsPaused) revert DepositsArePaused();
+        if (!isAllowance[allowance]) revert UnknownVault();
+        if (amount == 0) revert ZeroAmount();
+        MoneySafeAllowance a = MoneySafeAllowance(allowance);
+        uint256 cap = vaultCap[address(a.asset())];
+        if (cap != 0 && a.deposited() - a.withdrawnTotal() + amount > cap) revert AboveVaultCap();
+        a.asset().safeTransferFrom(msg.sender, allowance, amount);
+        a.supplyIdle();
+        emit AllowanceToppedUp(allowance, msg.sender, amount);
+    }
+
+    function allowancesOf(address user) external view returns (address[] memory) {
+        return _allowancesOf[user];
+    }
+
+    function _deployAllowance(uint8 protocol, address asset, uint256 rate, uint64 period, uint64 st) internal returns (address allowance) {
+        (address market, address aToken) = _market(protocol, asset);
+        allowance = Clones.clone(allowanceImplementation);
+        MoneySafeAllowance(allowance).initialize(msg.sender, IERC20(asset), protocol, market, IERC20(aToken), rate, period, st);
+        isAllowance[allowance] = true;
+    }
+
+    function _market(uint8 protocol, address asset) internal view returns (address market, address aToken) {
+        if (protocol == AAVE) {
+            aToken = aTokenOf[asset];
+            if (aToken == address(0)) revert AssetNotAllowed();
+            market = address(pool);
+        } else if (protocol == COMET) {
+            if (!cometAllowed[asset]) revert AssetNotAllowed();
+            market = cometMarketOf[asset];
+        } else {
+            revert BadProtocol();
+        }
     }
 
     function vaultsOf(address user) external view returns (address[] memory) {

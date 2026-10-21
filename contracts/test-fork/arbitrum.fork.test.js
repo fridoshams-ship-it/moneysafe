@@ -65,6 +65,23 @@ const ERC20 = ["function balanceOf(address) view returns (uint256)", "function a
 
   after(function () { if (process.env.GITHUB_ACTIONS) console.log("::notice title=Fork::fork tests ran against block " + this.currentTest?.parent?.title) })
 
+  it("Aave USDC daily budget: 100 at 10/day, real interest after the last day", async function () {
+    const token = new ethers.Contract(A.USDC, ERC20, user);
+    await (await token.approve(await f.getAddress(), ethers.parseUnits("100", 6))).wait();
+    const rc = await (await f.connect(user).createAllowance(0, A.USDC, ethers.parseUnits("100", 6), ethers.parseUnits("10", 6), DAY, 0, "Daily")).wait();
+    const ev = rc.logs.map((l) => { try { return f.interface.parseLog(l); } catch { return null; } }).find((e) => e && e.name === "AllowanceCreated");
+    const a = await ethers.getContractAt("MoneySafeAllowance", ev.args.allowance);
+    expect(await a.available()).to.equal(ethers.parseUnits("10", 6));
+    await expect(a.connect(user).withdraw(ethers.parseUnits("11", 6))).to.be.revertedWithCustomError(a, "MoreThanAvailable");
+    await (await a.connect(user).withdraw(ethers.parseUnits("10", 6))).wait();
+    await time.increase(30n * DAY);
+    const before = await token.balanceOf(user.address);
+    await (await a.connect(user).withdraw(ethers.MaxUint256)).wait();
+    const got = (await token.balanceOf(user.address)) - before;
+    expect(got).to.be.gt(ethers.parseUnits("90", 6));
+    console.log(`::notice title=Fork daily budget::Aave USDC budget: 10 on day 1, then ${ethers.formatUnits(got, 6)} after 30 days`);
+  });
+
   it("Aave WBTC can be switched on (listed reserve)", async function () {
     expect(await f.aTokenOf(A.WBTC)).to.not.equal(ethers.ZeroAddress);
   });

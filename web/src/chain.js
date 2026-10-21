@@ -26,7 +26,21 @@ const FACTORY = parseAbi([
   'event VaultCreated(address indexed owner, address indexed vault, address indexed asset, uint256 amount, uint64 unlockTime, string goal)',
   'event VaultGifted(address indexed from, address indexed recipient, address indexed vault)',
   'function vaultCap(address) view returns (uint256)',
+  'function createAllowance(uint8 protocol, address asset, uint256 amount, uint256 rate, uint64 period, uint64 start, string goal) returns (address)',
+  'function topUpAllowance(address allowance, uint256 amount)',
+  'function allowancesOf(address) view returns (address[])',
+  'event AllowanceCreated(address indexed owner, address indexed allowance, address indexed asset, uint256 amount, uint256 rate, uint64 period, uint64 start, string goal)',
+  'error AboveVaultCap()', 'error DepositsArePaused()', 'error AssetNotAllowed()', 'error BadUnlockTime()', 'error VaultUnlocked()', 'error RateAboveAmount()', 'error Closed()',
 ])
+const ALLOW = parseAbi([
+  'function asset() view returns (address)', 'function deposited() view returns (uint256)', 'function withdrawnTotal() view returns (uint256)',
+  'function rate() view returns (uint256)', 'function period() view returns (uint64)', 'function start() view returns (uint64)',
+  'function createdAt() view returns (uint64)', 'function lastRateChange() view returns (uint64)', 'function checkpointPeriods() view returns (uint256)',
+  'function accruedAtCheckpoint() view returns (uint256)', 'function earned() view returns (uint256)', 'function closed() view returns (bool)',
+  'function available() view returns (uint256)', 'function withdraw(uint256)', 'function setRate(uint256)',
+  'error MoreThanAvailable(uint256 available)', 'error RaiseTooSoon(uint64 allowedFrom)', 'error SameRate()', 'error Closed()', 'error NotOwner()',
+])
+const ALLOW_EV = FACTORY.find((x) => x.type === 'event' && x.name === 'AllowanceCreated')
 const VAULT = parseAbi([
   'function asset() view returns (address)',
   'function owner() view returns (address)',
@@ -164,6 +178,21 @@ async function readVault(addr) {
     earned: fromUnits(sym, earned), withdrawn, withdrawnTotal: fromUnits(sym, wTotal) }
 }
 
+async function readAllowance(addr, names) {
+  const f = ['asset', 'deposited', 'withdrawnTotal', 'rate', 'period', 'start', 'createdAt', 'lastRateChange', 'checkpointPeriods', 'accruedAtCheckpoint', 'earned', 'closed']
+  const r = await Promise.all(f.map((fn) => pub.readContract({ address: addr, abi: ALLOW, functionName: fn })))
+  const sym = symOf[r[0].toLowerCase()] || '?', u = (v) => fromUnits(sym, v)
+  return { addr, sym, total: u(r[1]), wd: u(r[2]), rate: u(r[3]), per: Number(r[4]) === 604800 ? 'w' : 'd', start: Number(r[5]) * 1000, from: Number(r[6]) * 1000,
+    lastRate: Number(r[7]) * 1000, chk: { n: Number(r[8]), acc: u(r[9]) }, earned: u(r[10]), closed: r[11], goal: names[addr.toLowerCase()] || '' }
+}
+async function allowanceNames(owner) {
+  if (!D.factory) return {}
+  try {
+    const logs = await pub.getLogs({ address: D.factory, event: ALLOW_EV, args: { owner }, fromBlock: BigInt(D.block || 0) })
+    return Object.fromEntries(logs.map((l) => [l.args.allowance.toLowerCase(), l.args.goal]))
+  } catch (e) { return {} }
+}
+
 async function goals(filterArgs) {
   const logs = await pub.getLogs({ address: D.factory, event: FACTORY[3], args: filterArgs, fromBlock: BigInt(D.block || 0) })
   return Object.fromEntries(logs.map((l) => [l.args.vault.toLowerCase(), l.args.goal]))
@@ -221,7 +250,14 @@ const MSChain = {
     const giftGoals = giftAddrs.length ? await goals({ vault: giftAddrs }) : {}
     const gifts = await Promise.all(giftAddrs.map(async (a) => ({ ...(await readVault(a)), goal: giftGoals[a.toLowerCase()] || '' })))
     const apr = Object.fromEntries(syms.map((s, i) => [s, rates[i]]))
-    return { address: me, wallet, gas: Number(formatUnits(gas, 18)), vaults, gifts, apr, at: Date.now() }
+    let budgets = []
+    try {
+      const list = await pub.readContract({ address: D.factory, abi: FACTORY, functionName: 'allowancesOf', args: [me] })
+      if (list.length) { const names = await allowanceNames(me); budgets = await Promise.all(list.map((a) => readAllowance(a, names))) }
+    } catch (e) { /* older factory without budgets */ }
+    let chainNow = Date.now()
+    try { chainNow = Number((await pub.getBlock({ blockTag: 'latest' })).timestamp) * 1000 } catch (e) {}
+    return { address: me, wallet, gas: Number(formatUnits(gas, 18)), vaults, gifts, budgets, apr, at: Date.now(), chainNow }
   },
 
   async faucetStatus(sym, who) {
@@ -252,6 +288,36 @@ const MSChain = {
     return (await write({ address: D.factory, abi: FACTORY, functionName: 'topUp', args: [vault, amt] })).transactionHash
   },
   /** Withdraws to the owner. For WETH-backed ETH, then offers to unwrap what arrived back into native ETH (optional 2nd signature). */
+  /** Money for every day. period: 'd' | 'w'. onStep(i): 0 approved, 1 created. */
+  async createBudget({ sym, total, rate, per, goal }, onStep = () => {}) {
+    const token = D.tokens[sym].address, amt = toUnits(sym, total), r = toUnits(sym, rate)
+    await ensureWrapped(sym, amt)
+    const allowance = await pub.readContract({ address: token, abi: ERC20, functionName: 'allowance', args: [address, D.factory] })
+    if (allowance < amt) await write({ address: token, abi: ERC20, functionName: 'approve', args: [D.factory, amt] })
+    onStep(0)
+    const rc = await write({ address: D.factory, abi: FACTORY, functionName: 'createAllowance', args: [0, token, amt, r, per === 'w' ? 604800n : 86400n, 0n, String(goal || '').slice(0, 30)] })
+    const ev = parseEventLogs({ abi: FACTORY, logs: rc.logs, eventName: 'AllowanceCreated' })[0]
+    onStep(1)
+    return { hash: rc.transactionHash, budget: ev ? getAddress(ev.args.allowance) : null }
+  },
+  async budgetTake(addr, sym, amount, all) {
+    const amt = all ? 2n ** 256n - 1n : toUnits(sym, amount), token = D.tokens[sym].address
+    const before = wrapped(sym) ? await pub.readContract({ address: token, abi: ERC20, functionName: 'balanceOf', args: [address] }) : 0n
+    const h = (await write({ address: addr, abi: ALLOW, functionName: 'withdraw', args: [amt] })).transactionHash
+    if (wrapped(sym)) {
+      const got = (await pub.readContract({ address: token, abi: ERC20, functionName: 'balanceOf', args: [address] })) - before
+      if (got > 0n) { try { await write({ address: token, abi: WETH, functionName: 'withdraw', args: [got] }) } catch (e) {} }
+    }
+    return h
+  },
+  async budgetRate(addr, sym, rate) { return (await write({ address: addr, abi: ALLOW, functionName: 'setRate', args: [toUnits(sym, rate)] })).transactionHash },
+  async budgetTopUp(addr, sym, amount) {
+    const token = D.tokens[sym].address, amt = toUnits(sym, amount)
+    await ensureWrapped(sym, amt)
+    const allowance = await pub.readContract({ address: token, abi: ERC20, functionName: 'allowance', args: [address, D.factory] })
+    if (allowance < amt) await write({ address: token, abi: ERC20, functionName: 'approve', args: [D.factory, amt] })
+    return (await write({ address: D.factory, abi: FACTORY, functionName: 'topUpAllowance', args: [addr, amt] })).transactionHash
+  },
   async withdraw(vault) {
     const sym = symOf[(await pub.readContract({ address: vault, abi: VAULT, functionName: 'asset' })).toLowerCase()]
     const token = sym && D.tokens[sym].address
