@@ -1,7 +1,7 @@
 // MoneySafe chain layer: talks to the MoneySafe contracts on a real network.
 // Wallets: Reown AppKit (WalletConnect, email and Google/Apple logins) or, for automated tests only, a dev key.
 // The app (index.html) calls window.MSChain; it never touches the blockchain directly.
-import { createPublicClient, createWalletClient, http, parseAbi, formatUnits, parseUnits, getAddress, parseEventLogs } from 'viem'
+import { createPublicClient, createWalletClient, http, custom, parseAbi, numberToHex, formatUnits, parseUnits, getAddress, parseEventLogs } from 'viem'
 import { arbitrumSepolia, polygonAmoy, arbitrum, polygon, hardhat } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import deployments from './deployments.json'
@@ -18,12 +18,14 @@ const ERC20 = parseAbi([
   'function faucet()',
   'function lastFaucet(address) view returns (uint256)',
 ])
+const WETH = parseAbi(['function deposit() payable', 'function withdraw(uint256)'])
 const FACTORY = parseAbi([
   'function createVaultWith(uint8 protocol, address recipient, address asset, uint256 amount, uint64 unlockTime, string goal) returns (address)',
   'function topUp(address vault, uint256 amount)',
   'function vaultsOf(address) view returns (address[])',
   'event VaultCreated(address indexed owner, address indexed vault, address indexed asset, uint256 amount, uint64 unlockTime, string goal)',
   'event VaultGifted(address indexed from, address indexed recipient, address indexed vault)',
+  'function vaultCap(address) view returns (uint256)',
 ])
 const VAULT = parseAbi([
   'function asset() view returns (address)',
@@ -40,11 +42,16 @@ const VAULT = parseAbi([
 ])
 const POOL = parseAbi(['function getReserveData(address) view returns ((uint256 configuration,uint128 liquidityIndex,uint128 currentLiquidityRate,uint128 variableBorrowIndex,uint128 currentVariableBorrowRate,uint128 currentStableBorrowRate,uint40 lastUpdateTimestamp,uint16 id,address aTokenAddress,address stableDebtTokenAddress,address variableDebtTokenAddress,address interestRateStrategyAddress,uint128 accruedToTreasury,uint128 unbacked,uint128 isolationModeTotalDebt))'])
 
+// MS_NETWORK = a deployment name, or 'real' (first non-test deployment) / 'test' (first test deployment).
 function pickDeployment() {
   const want = (globalThis.MS_NETWORK || '').trim()
   const list = Object.values(deployments || {})
-  return list.find((d) => d.network === want) || list.find((d) => d.network === 'arbitrumSepolia') || list[0] || null
+  if (want === 'real') return list.find((d) => !d.testnet) || null
+  if (want === 'test' || !want) return list.find((d) => d.testnet && d.network === 'arbitrumSepolia') || list.find((d) => d.testnet) || null
+  return list.find((d) => d.network === want) || null
 }
+const AVAILABLE = { real: Object.values(deployments || {}).some((d) => !d.testnet), test: Object.values(deployments || {}).some((d) => d.testnet) }
+const GAS_RESERVE = 0.0003 // native ETH kept for gas when wrapping ETH into a vault
 
 const D = pickDeployment()
 const chain = D ? CHAINS[D.chainId] : null
@@ -55,6 +62,8 @@ const symOf = D ? Object.fromEntries(Object.entries(D.tokens).map(([s, t]) => [t
 let wallet = null // viem wallet client
 let address = null
 let appkit = null
+let injected = null // window.ethereum of MetaMask / Trust / other in-wallet browsers
+const eth = () => globalThis.ethereum || null
 const listeners = new Set()
 const emit = () => listeners.forEach((f) => { try { f(address) } catch (e) {} })
 
@@ -82,6 +91,41 @@ async function initAppKit() {
   return appkit
 }
 
+async function switchChain(p) {
+  const hex = numberToHex(chain.id)
+  try { await p.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] }) }
+  catch (e) {
+    if (e && (e.code === 4902 || /Unrecognized|not added|4902/i.test(String(e.message)))) {
+      await p.request({ method: 'wallet_addEthereumChain', params: [{ chainId: hex, chainName: chain.name, nativeCurrency: chain.nativeCurrency,
+        rpcUrls: [rpc || chain.rpcUrls.default.http[0]], blockExplorerUrls: EXPLORER[chain.id] ? [EXPLORER[chain.id]] : [] }] })
+    } else throw e
+  }
+}
+function useInjected(p, a) {
+  injected = p
+  wallet = createWalletClient({ account: getAddress(a), chain, transport: custom(p) })
+  address = getAddress(a)
+  if (!p.__msListen && p.on) {
+    p.__msListen = true
+    p.on('accountsChanged', (acc) => { if (acc && acc[0]) useInjected(p, acc[0]); else { wallet = null; address = null; emit() } })
+    p.on('chainChanged', () => {})
+  }
+  emit()
+}
+async function connectInjected(silent) {
+  const p = eth(); if (!p) return null
+  const acc = await p.request({ method: silent ? 'eth_accounts' : 'eth_requestAccounts' })
+  if (!acc || !acc[0]) return null
+  if (!silent) await switchChain(p)
+  useInjected(p, acc[0])
+  return address
+}
+async function ensureChain() {
+  if (!injected) return
+  const id = Number(await injected.request({ method: 'eth_chainId' }))
+  if (id !== chain.id) await switchChain(injected)
+}
+
 function useDevKey(pk) {
   const account = privateKeyToAccount(pk)
   wallet = createWalletClient({ account, chain, transport: http(rpc) })
@@ -94,7 +138,19 @@ async function waitTx(hash) {
   if (r.status !== 'success') throw new Error('TX_FAILED')
   return r
 }
-const write = async (req) => waitTx(await wallet.writeContract({ account: wallet.account, chain, ...req }))
+const write = async (req) => { await ensureChain(); return waitTx(await wallet.writeContract({ account: wallet.account, chain, ...req })) }
+const wrapped = (sym) => !!D.tokens[sym].wrapped
+/** For WETH-backed ETH: wrap just the missing part from native ETH, keeping a little for gas. */
+async function ensureWrapped(sym, amt) {
+  if (!wrapped(sym)) return null
+  const token = D.tokens[sym].address
+  const have = await pub.readContract({ address: token, abi: ERC20, functionName: 'balanceOf', args: [address] })
+  if (have >= amt) return null
+  const need = amt - have
+  const native = await pub.getBalance({ address })
+  if (native - parseUnits(String(GAS_RESERVE), 18) < need) throw new Error('INSUFFICIENT_ETH')
+  return (await write({ address: token, abi: WETH, functionName: 'deposit', value: need })).transactionHash
+}
 const dec = (sym) => D.tokens[sym].decimals
 const toUnits = (sym, n) => parseUnits(String(+(+n).toFixed(dec(sym))), dec(sym))
 const fromUnits = (sym, v) => Number(formatUnits(v, dec(sym)))
@@ -117,12 +173,17 @@ const MSChain = {
   get ready() { return !!D },
   get address() { return address },
   get connected() { return !!(wallet && address) },
-  info() { return D ? { network: D.network, chainId: D.chainId, chainName: chain.name, testnet: !!D.testnet, factory: D.factory, explorer: EXPLORER[D.chainId] || '', gasFaucet: GAS_FAUCET[D.chainId] || '', tokens: Object.keys(D.tokens) } : null },
+  available: AVAILABLE,
+  get hasInjected() { return !!eth() },
+  get hasWalletConnect() { return !!(globalThis.MS_REOWN_PROJECT_ID || import.meta.env.VITE_REOWN_PROJECT_ID || '').trim() },
+  info() { return D ? { network: D.network, chainId: D.chainId, chainName: chain.name, testnet: !!D.testnet, factory: D.factory, explorer: EXPLORER[D.chainId] || '', gasFaucet: GAS_FAUCET[D.chainId] || '', tokens: Object.keys(D.tokens),
+    caps: Object.fromEntries(Object.entries(D.tokens).filter(([, t]) => t.cap).map(([s, t]) => [s, Number(t.cap)])), gasReserve: D.testnet ? 0 : GAS_RESERVE } : null },
   onChange(f) { listeners.add(f); return () => listeners.delete(f) },
 
   async connect() {
     const dev = globalThis.MS_DEV_KEY
     if (dev) { useDevKey(dev); return address }
+    if (eth()) { const a = await connectInjected(false); if (a) return a; throw new Error('CANCELLED') }
     const kit = await initAppKit()
     if (address) return address
     await kit.open()
@@ -134,11 +195,12 @@ const MSChain = {
   /** Re-attach a session that was connected before (AppKit restores it by itself). */
   async restore(ms = 3500) {
     if (globalThis.MS_DEV_KEY) { useDevKey(globalThis.MS_DEV_KEY); return address }
+    if (eth()) { try { return await connectInjected(true) } catch (e) { return null } }
     try { await initAppKit() } catch (e) { return null }
     if (address) return address
     return new Promise((res) => { const off = MSChain.onChange((a) => { if (a) { off(); res(a) } }); setTimeout(() => { off(); res(address) }, ms) })
   },
-  async disconnect() { try { if (appkit) await appkit.disconnect() } catch (e) {} wallet = null; address = null; emit() },
+  async disconnect() { try { if (appkit) await appkit.disconnect() } catch (e) {} injected = null; wallet = null; address = null; emit() },
 
   /** Full picture for the app: balances, my vaults, gifts I sent, gas, rates. */
   async state(who) {
@@ -152,7 +214,8 @@ const MSChain = {
       pub.getLogs({ address: D.factory, event: FACTORY[4], args: { from: me }, fromBlock: BigInt(D.block || 0) }),
       D.pool ? Promise.all(syms.map((s) => pub.readContract({ address: D.pool, abi: POOL, functionName: 'getReserveData', args: [D.tokens[s].address] }).then((r) => Number(r.currentLiquidityRate) / 1e27).catch(() => 0))) : syms.map(() => 0),
     ])
-    const wallet = Object.fromEntries(syms.map((s, i) => [s, fromUnits(s, bals[i])]))
+    const native = Number(formatUnits(gas, 18))
+    const wallet = Object.fromEntries(syms.map((s, i) => [s, fromUnits(s, bals[i]) + (D.tokens[s].wrapped ? Math.max(0, native - GAS_RESERVE) : 0)]))
     const vaults = await Promise.all(myVaults.map(async (a) => ({ ...(await readVault(a)), goal: myGoals[a.toLowerCase()] || '' })))
     const giftAddrs = giftLogs.map((l) => l.args.vault)
     const giftGoals = giftAddrs.length ? await goals({ vault: giftAddrs }) : {}
@@ -170,6 +233,7 @@ const MSChain = {
   /** onStep(i, hash): 0 = approved, 1 = vault created, 2 = confirmed. */
   async createVault({ sym, amount, unlockMs, goal, recipient }, onStep = () => {}) {
     const token = D.tokens[sym].address, amt = toUnits(sym, amount)
+    await ensureWrapped(sym, amt)
     const allowance = await pub.readContract({ address: token, abi: ERC20, functionName: 'allowance', args: [address, D.factory] })
     if (allowance < amt) { const r = await write({ address: token, abi: ERC20, functionName: 'approve', args: [D.factory, amt] }); onStep(0, r.transactionHash) } else onStep(0, null)
     const r = await write({ address: D.factory, abi: FACTORY, functionName: 'createVaultWith',
@@ -182,12 +246,33 @@ const MSChain = {
   },
   async topUp(vault, sym, amount) {
     const token = D.tokens[sym].address, amt = toUnits(sym, amount)
+    await ensureWrapped(sym, amt)
     const allowance = await pub.readContract({ address: token, abi: ERC20, functionName: 'allowance', args: [address, D.factory] })
     if (allowance < amt) await write({ address: token, abi: ERC20, functionName: 'approve', args: [D.factory, amt] })
     return (await write({ address: D.factory, abi: FACTORY, functionName: 'topUp', args: [vault, amt] })).transactionHash
   },
-  async withdraw(vault) { return (await write({ address: vault, abi: VAULT, functionName: 'withdraw' })).transactionHash },
-  async send(sym, to, amount) { return (await write({ address: D.tokens[sym].address, abi: ERC20, functionName: 'transfer', args: [getAddress(to), toUnits(sym, amount)] })).transactionHash },
+  /** Withdraws to the owner. For WETH-backed ETH, then offers to unwrap what arrived back into native ETH (optional 2nd signature). */
+  async withdraw(vault) {
+    const sym = symOf[(await pub.readContract({ address: vault, abi: VAULT, functionName: 'asset' })).toLowerCase()]
+    const token = sym && D.tokens[sym].address
+    const before = wrapped(sym) ? await pub.readContract({ address: token, abi: ERC20, functionName: 'balanceOf', args: [address] }) : 0n
+    const h = (await write({ address: vault, abi: VAULT, functionName: 'withdraw' })).transactionHash
+    if (wrapped(sym)) {
+      const got = (await pub.readContract({ address: token, abi: ERC20, functionName: 'balanceOf', args: [address] })) - before
+      if (got > 0n) { try { await write({ address: token, abi: WETH, functionName: 'withdraw', args: [got] }) } catch (e) { /* stays as WETH, still shown as ETH */ } }
+    }
+    return h
+  },
+  async send(sym, to, amount) {
+    const amt = toUnits(sym, amount)
+    if (wrapped(sym)) {
+      const native = await pub.getBalance({ address })
+      if (native - parseUnits(String(GAS_RESERVE), 18) >= amt) { await ensureChain(); return (await waitTx(await wallet.sendTransaction({ account: wallet.account, chain, to: getAddress(to), value: amt }))).transactionHash }
+      const w = await pub.readContract({ address: D.tokens[sym].address, abi: ERC20, functionName: 'balanceOf', args: [address] })
+      if (w < amt) await ensureWrapped(sym, amt)
+    }
+    return (await write({ address: D.tokens[sym].address, abi: ERC20, functionName: 'transfer', args: [getAddress(to), amt] })).transactionHash
+  },
   txUrl(hash) { return EXPLORER[D?.chainId] ? EXPLORER[D.chainId] + '/tx/' + hash : '' },
   addrUrl(a) { return EXPLORER[D?.chainId] ? EXPLORER[D.chainId] + '/address/' + a : '' },
 }

@@ -1,0 +1,38 @@
+name: Deploy mainnet (real money, beta)
+# Manual: Actions → "Deploy mainnet (real money, beta)" → Run workflow → type DEPLOY in the confirm box.
+# Needs repository secret MAINNET_DEPLOYER_KEY (a NEW wallet holding only ~$2–5 of ETH on Arbitrum for gas)
+# and optionally ARBITRUM_RPC (defaults to the public Arbitrum RPC).
+# The contracts are NOT audited yet: deploy.js sets small per-vault caps from config/networks.json (betaCap).
+on:
+  workflow_dispatch:
+    inputs:
+      network: { description: "arbitrum", default: arbitrum, required: true }
+      confirm: { description: "Type DEPLOY to confirm a real-money deployment", required: true }
+permissions:
+  contents: write
+jobs:
+  deploy:
+    if: ${{ inputs.confirm == 'DEPLOY' }}
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: contracts } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: contracts/package-lock.json }
+      - run: npm ci
+      - run: npx hardhat test
+      - name: Fork test against the real network first
+        run: npx hardhat test test-fork/arbitrum.fork.test.js
+        env: { FORK_URL: "${{ secrets.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc' }}" }
+      - name: Deploy factory, switch on assets, set beta caps
+        env:
+          DEPLOYER_KEY: ${{ secrets.MAINNET_DEPLOYER_KEY }}
+          ARBITRUM_RPC: ${{ secrets.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc' }}
+        run: npx hardhat run scripts/deploy.js --network ${{ inputs.network }}
+      - name: Save addresses to the repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deployments
+          git commit -m "Mainnet beta deployment: ${{ inputs.network }}" || echo "nothing to commit"
+          git push

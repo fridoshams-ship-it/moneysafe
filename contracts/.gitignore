@@ -2,3 +2,7 @@ node_modules
 artifacts
 cache
 .env
+deployments/localhost.json
+deployments/localreal.json
+deployments/hardhat.json
+deployments/fork-dryrun.json

@@ -11,6 +11,14 @@
 | `web/` | Веб-приложение: демо-режим и режим тестовой сети (viem + Reown AppKit: WalletConnect, вход Google / Apple / email). `npm run build`. |
 | `.github/workflows/` | CI: тесты контрактов при каждом изменении, развёртывание тестовой сети по кнопке, публикация веб-приложения на GitHub Pages. |
 
+## Бета на реальных деньгах (Arbitrum One)
+Контракты ещё без независимого аудита, поэтому в одном сейфе — не больше бета-лимита (`betaCap` в `contracts/config/networks.json`: 500 USDC / 500 USDT / 0,2 ETH / 0,006 WBTC).
+1. Создайте **новый** кошелёк только для развёртывания, положите на него ~$3–5 в ETH в сети Arbitrum.
+2. Settings → Secrets and variables → Actions → Secrets: `MAINNET_DEPLOYER_KEY` = приватный ключ этого кошелька.
+3. Actions → «Deploy mainnet (real money, beta)» → Run workflow → в поле confirm напишите `DEPLOY`. Сначала прогонятся все тесты и тест на копии настоящей сети, потом развёртывание; адреса сохранятся в `contracts/deployments/arbitrum.json`, и сайт пересоберётся сам.
+4. На сайте выберите «Реальные деньги». Кошелёк: откройте сайт во встроенном браузере MetaMask / Trust Wallet (кнопки есть на экране входа) или задайте `REOWN_PROJECT_ID` для WalletConnect.
+ETH кладётся в сейф как WETH (приложение само обернёт и при выводе развернёт обратно в ETH).
+
 ## Запуск тестовой сети
 
 1. Создайте новый кошелёк только для тестов и получите на него тестовый ETH в сети Arbitrum Sepolia.

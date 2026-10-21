@@ -33,11 +33,14 @@ contract MoneySafeFactory is Ownable2Step {
     mapping(address asset => address comet) public cometMarketOf;
     /// @notice Compound III: asset switched on for new vaults.
     mapping(address asset => bool) public cometAllowed;
+    /// @notice Beta limit: max principal per vault for an asset (0 = no limit). Limits NEW deposits only.
+    mapping(address asset => uint256) public vaultCap;
     mapping(address vault => bool) public isVault;
     mapping(address user => address[]) private _vaultsOf;
 
     event AssetSet(address indexed asset, uint8 indexed protocol, address market, bool allowed);
     event DepositsPaused(bool paused);
+    event VaultCapSet(address indexed asset, uint256 cap);
     event VaultCreated(address indexed owner, address indexed vault, address indexed asset, uint256 amount, uint64 unlockTime, string goal);
     event VaultMarket(address indexed vault, uint8 protocol, address market);
     event VaultGifted(address indexed from, address indexed recipient, address indexed vault);
@@ -54,6 +57,7 @@ contract MoneySafeFactory is Ownable2Step {
     error ZeroRecipient();
     error BadProtocol();
     error NoCometMarket();
+    error AboveVaultCap();
 
     /// @param pool_ Aave V3 Pool of this chain (zero if Aave is not used on this chain).
     /// @param comets_ Compound III markets of this chain. Each one's base token becomes a possible asset.
@@ -97,6 +101,12 @@ contract MoneySafeFactory is Ownable2Step {
     function setDepositsPaused(bool paused) external onlyOwner {
         depositsPaused = paused;
         emit DepositsPaused(paused);
+    }
+
+    /// @notice Sets the beta limit per vault for an asset (0 removes it). Only affects new deposits and top-ups.
+    function setVaultCap(address asset, uint256 cap) external onlyOwner {
+        vaultCap[asset] = cap;
+        emit VaultCapSet(asset, cap);
     }
 
     // ---------- users ----------
@@ -152,6 +162,8 @@ contract MoneySafeFactory is Ownable2Step {
             revert BadProtocol();
         }
         if (amount == 0) revert ZeroAmount();
+        uint256 cap = vaultCap[asset];
+        if (cap != 0 && amount > cap) revert AboveVaultCap();
         if (unlockTime < block.timestamp + MIN_LOCK || unlockTime > block.timestamp + MAX_LOCK) revert BadUnlockTime();
         if (bytes(goal).length > MAX_GOAL_BYTES) revert GoalTooLong();
 
@@ -175,6 +187,8 @@ contract MoneySafeFactory is Ownable2Step {
         if (amount == 0) revert ZeroAmount();
         MoneySafeVault v = MoneySafeVault(vault);
         if (v.isUnlocked()) revert VaultUnlocked();
+        uint256 cap = vaultCap[address(v.asset())];
+        if (cap != 0 && v.principal() + amount > cap) revert AboveVaultCap();
 
         v.asset().safeTransferFrom(msg.sender, vault, amount);
         v.supplyIdle();

@@ -14,3 +14,19 @@ jobs:
         with: { node-version: 20, cache: npm, cache-dependency-path: contracts/package-lock.json }
       - run: npm ci
       - run: npx hardhat test
+  fork:
+    # Same contracts against a fork of the real Arbitrum One: real Aave V3, Compound III, USDC, USDT, WETH.
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: contracts } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: contracts/package-lock.json }
+      - run: npm ci
+      - run: npx hardhat test test-fork/arbitrum.fork.test.js
+        env:
+          FORK_URL: ${{ secrets.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc' }}
+      - name: Mainnet deploy script on the fork (dry run)
+        run: MS_CONFIG=arbitrum MS_OUT=fork-dryrun npx hardhat run scripts/deploy.js --network hardhat && cat deployments/fork-dryrun.json
+        env:
+          FORK_URL: ${{ secrets.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc' }}

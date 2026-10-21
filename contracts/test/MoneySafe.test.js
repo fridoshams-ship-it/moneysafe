@@ -185,6 +185,23 @@ describe("MoneySafe", function () {
     await expect(vault.connect(f.alice).withdrawPartial(0n)).to.be.revertedWithCustomError(vault, "ZeroAmount");
   });
 
+  it("beta cap limits new deposits and top-ups only; existing vaults still withdraw", async function () {
+    const f = await loadFixture(deploy);
+    const a = await f.USDC.getAddress();
+    await expect(f.factory.connect(f.alice).setVaultCap(a, usdc(500))).to.be.revertedWithCustomError(f.factory, "OwnableUnauthorizedAccount");
+    const { vault: old, unlock } = await openVault(f, f.alice, usdc(2000), 30n);
+    await expect(f.factory.setVaultCap(a, usdc(500))).to.emit(f.factory, "VaultCapSet").withArgs(a, usdc(500));
+    const now = BigInt(await time.latest());
+    await expect(f.factory.connect(f.bob).createVault(a, usdc(501), now + 30n * DAY, "x")).to.be.revertedWithCustomError(f.factory, "AboveVaultCap");
+    const { vault } = await openVault(f, f.bob, usdc(400), 30n);
+    await f.factory.connect(f.bob).topUp(await vault.getAddress(), usdc(100));
+    await expect(f.factory.connect(f.bob).topUp(await vault.getAddress(), 1n)).to.be.revertedWithCustomError(f.factory, "AboveVaultCap");
+    await time.setNextBlockTimestamp(unlock);
+    await expect(old.connect(f.alice).withdraw()).to.emit(old, "Withdrawn").withArgs(f.alice.address, usdc(2000), true);
+    await f.factory.setVaultCap(a, 0);
+    await openVault(f, f.bob, usdc(5000), 30n);
+  });
+
   it("rejects an over-long goal label", async function () {
     const f = await loadFixture(deploy);
     const now = BigInt(await time.latest());

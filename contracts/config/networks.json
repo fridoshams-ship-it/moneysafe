@@ -1,9 +1,11 @@
 {
-  "_note": "Addresses must match the official sources before any deploy: Aave — github.com/bgd-labs/aave-address-book, Compound III — github.com/compound-finance/comet/tree/main/deployments. The factory checks them on-chain: a wrong Aave asset reverts in allowAsset (no aToken), a wrong Comet reverts in the constructor (no baseToken).",
+  "_note": "Arbitrum One addresses verified 2026-10-21 against bgd-labs/aave-address-book (AaveV3Arbitrum.sol) and compound-finance/comet deployments/arbitrum/{usdc,usdt,weth}/roots.json. Polygon: not yet verified \u2014 do not deploy there before checking. betaCap = max principal per vault while the contracts are unaudited (0 = none).",
   "polygon": {
     "chainId": 137,
     "aavePool": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
-    "comets": ["0xF25212E676D1F7F89Cd72fFEe66158f541246445"],
+    "comets": [
+      "0xF25212E676D1F7F89Cd72fFEe66158f541246445"
+    ],
     "assets": {
       "USDC": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
       "USDT": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
@@ -24,6 +26,12 @@
       "USDT": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
       "WETH": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
       "WBTC": "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f"
+    },
+    "betaCap": {
+      "USDC": "500",
+      "USDT": "500",
+      "WETH": "0.2",
+      "WBTC": "0.006"
     }
   },
   "arbitrumSepolia": {
