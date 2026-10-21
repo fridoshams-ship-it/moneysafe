@@ -1,0 +1,89 @@
+name: iOS
+# 1) Every change: builds the iOS app for the simulator (no Apple account needed) — proves the Xcode project compiles.
+# 2) When the Apple secrets exist: archives, signs automatically and uploads the build to TestFlight.
+#    Secrets (Settings → Secrets and variables → Actions):
+#      APPLE_TEAM_ID        — 10-character Team ID (developer.apple.com → Membership)
+#      ASC_KEY_ID           — App Store Connect API key ID (App Store Connect → Users and Access → Integrations → Keys, role "App Manager")
+#      ASC_ISSUER_ID        — Issuer ID shown on the same page
+#      ASC_KEY_P8           — contents of the downloaded AuthKey_XXXX.p8 file
+#    The app record "MoneySafe" with bundle ID uz.moneysafe.app must exist in App Store Connect.
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", "contracts/deployments/**", ".github/workflows/ios.yml"]
+  workflow_dispatch:
+concurrency: { group: ios, cancel-in-progress: true }
+jobs:
+  simulator:
+    runs-on: macos-15
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_REOWN_PROJECT_ID: ${{ vars.REOWN_PROJECT_ID }}
+          VITE_MS_API: ${{ vars.MS_API }}
+      - run: npx cap sync ios
+      - name: Build for the iOS simulator (unsigned)
+        working-directory: web/ios/App
+        run: |
+          xcodebuild -project App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build | tail -n 40
+          APP=$(find build/Build/Products -name 'App.app' -maxdepth 3 | head -1)
+          test -d "$APP" && ls "$APP" | head
+          (cd "$(dirname "$APP")" && zip -qry "$GITHUB_WORKSPACE/MoneySafe-ios-simulator.zip" App.app)
+          echo "::notice title=iOS simulator build::$(du -h $GITHUB_WORKSPACE/MoneySafe-ios-simulator.zip | cut -f1) — $(defaults read "$PWD/$APP/Info" CFBundleIdentifier)"
+      - uses: actions/upload-artifact@v4
+        with: { name: MoneySafe-ios-simulator, path: MoneySafe-ios-simulator.zip }
+
+  testflight:
+    needs: simulator
+    runs-on: macos-15
+    defaults: { run: { working-directory: web } }
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - name: Apple secrets present?
+        id: chk
+        working-directory: .
+        run: |
+          if [ -n "$APPLE_TEAM_ID" ] && [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY_P8" ]; then echo "go=1" >> $GITHUB_OUTPUT
+          else echo "::notice title=TestFlight::skipped — add APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 to enable"; fi
+      - uses: actions/checkout@v4
+        if: steps.chk.outputs.go == '1'
+      - uses: actions/setup-node@v4
+        if: steps.chk.outputs.go == '1'
+        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+      - if: steps.chk.outputs.go == '1'
+        run: npm ci && npm run build && npx cap sync ios
+        env:
+          VITE_REOWN_PROJECT_ID: ${{ vars.REOWN_PROJECT_ID }}
+          VITE_MS_API: ${{ vars.MS_API }}
+      - name: Archive, sign and upload to TestFlight
+        if: steps.chk.outputs.go == '1'
+        working-directory: web/ios/App
+        run: |
+          KEY="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"; printf '%s' "$ASC_KEY_P8" > "$KEY"
+          AUTH="-allowProvisioningUpdates -authenticationKeyPath $KEY -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID"
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/MoneySafe.xcarchive" DEVELOPMENT_TEAM=$APPLE_TEAM_ID CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} MARKETING_VERSION=1.0.${{ github.run_number }} $AUTH archive | tail -n 30
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/MoneySafe.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" $AUTH | tail -n 30
+          echo "::notice title=TestFlight::build 1.0.${{ github.run_number }} uploaded — it appears in TestFlight after Apple processing (~10–30 min)"
