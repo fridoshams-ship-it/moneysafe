@@ -1,5 +1,5 @@
 {
-  "_note": "Arbitrum One addresses verified 2026-10-21 against bgd-labs/aave-address-book (AaveV3Arbitrum.sol) and compound-finance/comet deployments/arbitrum/{usdc,usdt,weth}/roots.json. Polygon: not yet verified \u2014 do not deploy there before checking. betaCap = max principal per vault while the contracts are unaudited (0 = none).",
+  "_note": "Arbitrum One addresses verified 2026-10-21 against bgd-labs/aave-address-book (AaveV3Arbitrum.sol) and compound-finance/comet deployments/arbitrum/{usdc,usdt,weth}/roots.json. Base addresses verified 2026-10-21 against bgd-labs/aave-address-book (AaveV3Base.sol) and compound-finance/comet deployments/base/{usdc,weth}/roots.json. Polygon: not yet verified \u2014 do not deploy there before checking. betaCap = max principal per vault while the contracts are unaudited (0 = none).",
   "polygon": {
     "chainId": 137,
     "aavePool": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
@@ -32,6 +32,12 @@
       "USDT": "500",
       "WETH": "0.2",
       "WBTC": "0.006"
+    },
+    "aTokens": {
+      "USDC": "0x724dc807b04555b71ed48a6896b6F41593b8C637",
+      "USDT": "0x6ab707Aca953eDAeFBc4fD23bA73294241490620",
+      "WETH": "0xe50fA9b3c56FfB159cB0FCA61F5c9D750e8128c8",
+      "WBTC": "0x078f358208685046a11C85e8ad32895DED33A249"
     }
   },
   "arbitrumSepolia": {
@@ -45,5 +51,28 @@
     "aavePool": "",
     "comets": [],
     "assets": {}
+  },
+  "base": {
+    "chainId": 8453,
+    "aavePool": "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5",
+    "comets": [
+      "0xb125E6687d4313864e53df431d5425969c15Eb2F",
+      "0x46e6b214b524310239732D51387075E0e70970bf"
+    ],
+    "assets": {
+      "USDC": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "WETH": "0x4200000000000000000000000000000000000006",
+      "cbBTC": "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf"
+    },
+    "aTokens": {
+      "USDC": "0x4e65fE4DbA92790696d040ac24Aa414708F5c0AB",
+      "WETH": "0xD4a0e0b9149BCee3C920d2E00b5dE09138fd8bb7",
+      "cbBTC": "0xBdb9300b7CDE636d9cD4AFF00f6F009fFBBc8EE6"
+    },
+    "betaCap": {
+      "USDC": "500",
+      "WETH": "0.2",
+      "cbBTC": "0.006"
+    }
   }
 }

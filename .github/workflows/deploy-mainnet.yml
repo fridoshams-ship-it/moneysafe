@@ -1,12 +1,16 @@
 name: Deploy mainnet (real money, beta)
 # Manual: Actions → "Deploy mainnet (real money, beta)" → Run workflow → type DEPLOY in the confirm box.
 # Needs repository secret MAINNET_DEPLOYER_KEY (a NEW wallet holding only ~$2–5 of ETH on Arbitrum for gas)
-# and optionally ARBITRUM_RPC (defaults to the public Arbitrum RPC).
+# and optionally ARBITRUM_RPC / BASE_RPC (default: the public RPC of the network).
 # The contracts are NOT audited yet: deploy.js sets small per-vault caps from config/networks.json (betaCap).
 on:
   workflow_dispatch:
     inputs:
-      network: { description: "arbitrum", default: arbitrum, required: true }
+      network:
+        description: "Network"
+        type: choice
+        options: [arbitrum, base]
+        default: arbitrum
       confirm: { description: "Type DEPLOY to confirm a real-money deployment", required: true }
 permissions:
   contents: write
@@ -22,12 +26,15 @@ jobs:
       - run: npm ci
       - run: npx hardhat test
       - name: Fork test against the real network first
-        run: npx hardhat test test-fork/arbitrum.fork.test.js
-        env: { FORK_URL: "${{ secrets.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc' }}" }
+        run: npx hardhat test test-fork/mainnet.fork.test.js
+        env:
+          FORK_NET: ${{ inputs.network }}
+          FORK_URL: ${{ inputs.network == 'base' && (secrets.BASE_RPC || 'https://mainnet.base.org') || (secrets.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc') }}
       - name: Deploy factory, switch on assets, set beta caps
         env:
           DEPLOYER_KEY: ${{ secrets.MAINNET_DEPLOYER_KEY }}
           ARBITRUM_RPC: ${{ secrets.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc' }}
+          BASE_RPC: ${{ secrets.BASE_RPC || 'https://mainnet.base.org' }}
         run: npx hardhat run scripts/deploy.js --network ${{ inputs.network }}
       - name: Save addresses to the repo
         run: |

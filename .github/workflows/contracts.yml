@@ -15,18 +15,24 @@ jobs:
       - run: npm ci
       - run: npx hardhat test
   fork:
-    # Same contracts against a fork of the real Arbitrum One: real Aave V3, Compound III, USDC, USDT, WETH.
+    # Same contracts against forks of the real networks: real Aave V3, Compound III and tokens.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { net: arbitrum, rpc: "https://arb1.arbitrum.io/rpc" }
+          - { net: base, rpc: "https://mainnet.base.org" }
+    name: fork (${{ matrix.net }})
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: contracts } }
+    env:
+      FORK_NET: ${{ matrix.net }}
+      FORK_URL: ${{ matrix.rpc }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm, cache-dependency-path: contracts/package-lock.json }
       - run: npm ci
-      - run: npx hardhat test test-fork/arbitrum.fork.test.js
-        env:
-          FORK_URL: ${{ secrets.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc' }}
+      - run: npx hardhat test test-fork/mainnet.fork.test.js
       - name: Mainnet deploy script on the fork (dry run)
-        run: MS_CONFIG=arbitrum MS_OUT=fork-dryrun npx hardhat run scripts/deploy.js --network hardhat && echo "::notice title=Dry-run deploy::$(tr -d '\n ' < deployments/fork-dryrun.json | cut -c1-900)"
-        env:
-          FORK_URL: ${{ secrets.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc' }}
+        run: MS_CONFIG=${{ matrix.net }} MS_OUT=fork-dryrun npx hardhat run scripts/deploy.js --network hardhat && echo "::notice title=Dry-run deploy ${{ matrix.net }}::$(tr -d '\n ' < deployments/fork-dryrun.json | cut -c1-900)"

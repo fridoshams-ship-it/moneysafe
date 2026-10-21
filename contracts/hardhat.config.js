@@ -19,6 +19,7 @@ const net = (envName, chainId) => (process.env[envName] ? { url: process.env[env
 const networks = Object.fromEntries(Object.entries({
   polygon: net("POLYGON_RPC", 137),
   arbitrum: net("ARBITRUM_RPC", 42161),
+  base: net("BASE_RPC", 8453),
   polygonAmoy: net("AMOY_RPC", 80002),
   arbitrumSepolia: net("ARB_SEPOLIA_RPC", 421614),
 }).filter(([, v]) => v));

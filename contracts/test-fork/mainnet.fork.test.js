@@ -1,17 +1,20 @@
 // Runs against a fork of the real Arbitrum One network with the real Aave V3 and Compound III.
-// FORK_URL=https://arb1.arbitrum.io/rpc npx hardhat test test-fork/arbitrum.fork.test.js
+// FORK_NET=arbitrum FORK_URL=https://arb1.arbitrum.io/rpc npx hardhat test test-fork/mainnet.fork.test.js
 const { expect } = require("chai");
 const { ethers, network } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
-const cfg = require("../config/networks.json").arbitrum;
+const NET = process.env.FORK_NET || "arbitrum";
+const cfg = require("../config/networks.json")[NET];
 
 const DAY = 86400n;
 const A = cfg.assets;
-// Official aTokens from bgd-labs/aave-address-book (AaveV3Arbitrum.sol)
-const ATOKENS = { USDC: "0x724dc807b04555b71ed48a6896b6F41593b8C637", USDT: "0x6ab707Aca953eDAeFBc4fD23bA73294241490620", WETH: "0xe50fA9b3c56FfB159cB0FCA61F5c9D750e8128c8", WBTC: "0x078f358208685046a11C85e8ad32895DED33A249" };
+// Official aTokens from bgd-labs/aave-address-book, kept in config/networks.json
+const ATOKENS = cfg.aTokens;
+const STABLES = ["USDC", "USDT"].filter((s) => A[s]);
+const COMET_ASSETS = ["USDC", "USDT", "WETH"].filter((s) => A[s]);
 const ERC20 = ["function balanceOf(address) view returns (uint256)", "function approve(address,uint256) returns (bool)", "function transfer(address,uint256) returns (bool)"];
 
-(process.env.FORK_URL ? describe : describe.skip)("Arbitrum One fork: real Aave V3 + Compound III", function () {
+(process.env.FORK_URL ? describe : describe.skip)(`${NET} fork: real Aave V3 + Compound III`, function () {
   this.timeout(300000);
   let f, user, admin;
 
@@ -22,12 +25,12 @@ const ERC20 = ["function balanceOf(address) view returns (uint256)", "function a
       await (await f.allowAsset(a)).wait();
       expect((await f.aTokenOf(a)).toLowerCase()).to.equal(ATOKENS[s].toLowerCase());
     }
-    for (const s of ["USDC", "USDT", "WETH"]) {
+    for (const s of COMET_ASSETS) {
       expect(await f.cometMarketOf(A[s])).to.not.equal(ethers.ZeroAddress);
       await (await f.allowComet(A[s])).wait();
     }
     // get real USDC / USDT: impersonate the Aave aToken contracts which hold the underlying
-    for (const s of ["USDC", "USDT"]) {
+    for (const s of STABLES) {
       await network.provider.request({ method: "hardhat_impersonateAccount", params: [ATOKENS[s]] });
       await network.provider.send("hardhat_setBalance", [ATOKENS[s], "0x56BC75E2D63100000"]);
       const holder = await ethers.getSigner(ATOKENS[s]);
@@ -47,7 +50,7 @@ const ERC20 = ["function balanceOf(address) view returns (uint256)", "function a
   }
 
   for (const [protocol, label] of [[0, "Aave"], [1, "Compound"]]) {
-    for (const [sym, amt] of [["USDC", ethers.parseUnits("1000", 6)], ["USDT", ethers.parseUnits("1000", 6)], ["WETH", ethers.parseEther("0.5")]]) {
+    for (const [sym, amt] of [["USDC", ethers.parseUnits("1000", 6)], ["USDT", ethers.parseUnits("1000", 6)], ["WETH", ethers.parseEther("0.5")]].filter(([s]) => A[s])) {
       it(`${label} ${sym}: locks, refuses early withdrawal, pays principal + real interest after the date`, async function () {
         const { vault, unlock, token } = await open(protocol, sym, amt, 30n);
         expect(await vault.balance()).to.be.closeTo(amt, amt / 10000n + 2n);
@@ -58,12 +61,10 @@ const ERC20 = ["function balanceOf(address) view returns (uint256)", "function a
         await (await vault.connect(user).withdraw()).wait();
         const got = (await token.balanceOf(user.address)) - before;
         expect(got).to.be.gt(amt);
-        console.log(`::notice title=Fork ${label} ${sym}::${label} ${sym}: in ${ethers.formatUnits(amt, sym === "WETH" ? 18 : 6)} → out ${ethers.formatUnits(got, sym === "WETH" ? 18 : 6)} after 30 days`);
+        console.log(`::notice title=Fork ${NET} ${label} ${sym}::${NET} ${label} ${sym}: in ${ethers.formatUnits(amt, sym === "WETH" ? 18 : 6)} → out ${ethers.formatUnits(got, sym === "WETH" ? 18 : 6)} after 30 days`);
       });
     }
   }
-
-  after(function () { if (process.env.GITHUB_ACTIONS) console.log("::notice title=Fork::fork tests ran against block " + this.currentTest?.parent?.title) })
 
   it("Aave USDC daily budget: 100 at 10/day, real interest after the last day", async function () {
     const token = new ethers.Contract(A.USDC, ERC20, user);
@@ -79,10 +80,10 @@ const ERC20 = ["function balanceOf(address) view returns (uint256)", "function a
     await (await a.connect(user).withdraw(ethers.MaxUint256)).wait();
     const got = (await token.balanceOf(user.address)) - before;
     expect(got).to.be.gt(ethers.parseUnits("90", 6));
-    console.log(`::notice title=Fork daily budget::Aave USDC budget: 10 on day 1, then ${ethers.formatUnits(got, 6)} after 30 days`);
+    console.log(`::notice title=Fork ${NET} daily budget::${NET} Aave USDC budget: 10 on day 1, then ${ethers.formatUnits(got, 6)} after 30 days`);
   });
 
-  it("Aave WBTC can be switched on (listed reserve)", async function () {
-    expect(await f.aTokenOf(A.WBTC)).to.not.equal(ethers.ZeroAddress);
+  it("every configured asset is listed on Aave (aToken matches the address book)", async function () {
+    for (const s of Object.keys(A)) expect((await f.aTokenOf(A[s])).toLowerCase()).to.equal(ATOKENS[s].toLowerCase());
   });
 });

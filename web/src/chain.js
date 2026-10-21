@@ -2,13 +2,13 @@
 // Wallets: Reown AppKit (WalletConnect, email and Google/Apple logins) or, for automated tests only, a dev key.
 // The app (index.html) calls window.MSChain; it never touches the blockchain directly.
 import { createPublicClient, createWalletClient, http, custom, parseAbi, numberToHex, formatUnits, parseUnits, getAddress, parseEventLogs } from 'viem'
-import { arbitrumSepolia, polygonAmoy, arbitrum, polygon, hardhat } from 'viem/chains'
+import { arbitrumSepolia, polygonAmoy, arbitrum, polygon, base, baseSepolia, hardhat } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import deployments from './deployments.json'
 
-const CHAINS = { 421614: arbitrumSepolia, 80002: polygonAmoy, 42161: arbitrum, 137: polygon, 31337: hardhat }
-const EXPLORER = { 421614: 'https://sepolia.arbiscan.io', 80002: 'https://amoy.polygonscan.com', 42161: 'https://arbiscan.io', 137: 'https://polygonscan.com' }
-const GAS_FAUCET = { 421614: 'https://www.alchemy.com/faucets/arbitrum-sepolia', 80002: 'https://faucet.polygon.technology' }
+const CHAINS = { 421614: arbitrumSepolia, 80002: polygonAmoy, 42161: arbitrum, 137: polygon, 8453: base, 84532: baseSepolia, 31337: hardhat }
+const EXPLORER = { 421614: 'https://sepolia.arbiscan.io', 80002: 'https://amoy.polygonscan.com', 42161: 'https://arbiscan.io', 137: 'https://polygonscan.com', 8453: 'https://basescan.org', 84532: 'https://sepolia.basescan.org' }
+const GAS_FAUCET = { 421614: 'https://www.alchemy.com/faucets/arbitrum-sepolia', 80002: 'https://faucet.polygon.technology', 84532: 'https://www.alchemy.com/faucets/base-sepolia' }
 
 const ERC20 = parseAbi([
   'function balanceOf(address) view returns (uint256)',
@@ -60,11 +60,12 @@ const POOL = parseAbi(['function getReserveData(address) view returns ((uint256 
 function pickDeployment() {
   const want = (globalThis.MS_NETWORK || '').trim()
   const list = Object.values(deployments || {})
-  if (want === 'real') return list.find((d) => !d.testnet) || null
+  if (want === 'real') return list.find((d) => !d.testnet && d.network === (globalThis.MS_REAL_NET || '').trim()) || list.find((d) => !d.testnet) || null
   if (want === 'test' || !want) return list.find((d) => d.testnet && d.network === 'arbitrumSepolia') || list.find((d) => d.testnet) || null
   return list.find((d) => d.network === want) || null
 }
-const AVAILABLE = { real: Object.values(deployments || {}).some((d) => !d.testnet), test: Object.values(deployments || {}).some((d) => d.testnet) }
+const AVAILABLE = { real: Object.values(deployments || {}).some((d) => !d.testnet), test: Object.values(deployments || {}).some((d) => d.testnet),
+  realNets: Object.values(deployments || {}).filter((d) => !d.testnet).map((d) => ({ network: d.network, name: (CHAINS[d.chainId] || {}).name || d.network })) }
 const GAS_RESERVE = 0.0003 // native ETH kept for gas when wrapping ETH into a vault
 
 const D = pickDeployment()

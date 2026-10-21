@@ -23,10 +23,10 @@ async function main() {
   console.log("MoneySafeFactory:", out.factory);
 
   for (const [sym0, a] of Object.entries(cfg.assets)) {
-    const sym = sym0 === "WETH" ? "ETH" : sym0 // the app shows WETH as ETH and wraps native ETH for the user
+    const sym = sym0 === "WETH" ? "ETH" : sym0 === "cbBTC" ? "WBTC" : sym0 // the app shows WETH as ETH (wrapping native ETH for the user) and cbBTC in the BTC slot
     const t = new ethers.Contract(a, ["function decimals() view returns (uint8)"], deployer)
     const decimals = Number(await t.decimals())
-    const tok = { address: a, decimals, wrapped: sym0 === "WETH", protocols: [] }
+    const tok = { address: a, decimals, wrapped: sym0 === "WETH", label: sym0, protocols: [] }
     if (pool !== ethers.ZeroAddress) {
       try { await (await factory.allowAsset(a)).wait(); tok.aToken = await factory.aTokenOf(a); tok.protocols.push(0); console.log("Aave", sym, "->", tok.aToken) }
       catch (e) { console.log("Aave", sym, "not listed — skipped") }
