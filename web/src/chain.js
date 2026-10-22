@@ -257,17 +257,90 @@ async function readAllowance(addr, names) {
   return { addr, sym, total: u(r[1]), wd: u(r[2]), rate: u(r[3]), per: Number(r[4]) === 604800 ? 'w' : 'd', start: Number(r[5]) * 1000, from: Number(r[6]) * 1000,
     lastRate: Number(r[7]) * 1000, chk: { n: Number(r[8]), acc: u(r[9]) }, earned: u(r[10]), closed: r[11], goal: names[addr.toLowerCase()] || '', proto }
 }
-async function allowanceNames(owner) {
-  if (!D.factory) return {}
-  try {
-    const logs = await pub.getLogs({ address: D.factory, event: ALLOW_EV, args: { owner }, fromBlock: BigInt(D.block || 0) })
-    return Object.fromEntries(logs.map((l) => [l.args.allowance.toLowerCase(), l.args.goal]))
-  } catch (e) { return {} }
+// ---------- event scanning ----------
+// Public RPCs limit eth_getLogs ranges, and a factory gets older every day. Logs are therefore read in adaptive chunks,
+// and what was read is cached on the device with a cursor, so each sync only reads the new blocks.
+const LS = { get(k) { try { return JSON.parse(localStorage.getItem(k) || 'null') } catch (e) { return null } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)) } catch (e) {} } }
+const REORG_MARGIN = 30n
+const ser = (o) => JSON.parse(JSON.stringify(o, (k, v) => (typeof v === 'bigint' ? v.toString() : v)))
+const MIN_CHUNK = 10n, MAX_REQ = 150
+let _lc = null // no automatic retries: a refused range is answered by a smaller range, not by waiting
+const logClient = () => (_lc ||= createPublicClient({ chain, transport: http(rpc, { retryCount: 0 }) }))
+// the largest range this node accepted / the smallest it refused, remembered per network on the device
+const CKEY = () => `ms-logchunk:${D ? D.network : "none"}`
+let ceil = BigInt(LS.get(CKEY()) || globalThis.MS_LOG_CHUNK || 2000000)
+let chunk = ceil
+/** Reads logs from `from` to `to` in chunks that shrink when the node refuses a range and grow again after successes.
+ *  Calls onChunk(logs, toBlock) after each chunk so progress is saved; stops after MAX_REQ requests (continues next sync). */
+async function getLogsChunked(params, from, to, onChunk) {
+  let a = from, req = 0
+  while (a <= to && req < MAX_REQ) {
+    const b = a + chunk - 1n > to ? to : a + chunk - 1n
+    req++
+    try { const logs = await logClient().getLogs({ ...params, fromBlock: a, toBlock: b }); await onChunk(logs, b); a = b + 1n; chunk = chunk * 2n > ceil ? ceil : chunk * 2n }
+    catch (e) {
+      if (chunk <= MIN_CHUNK) throw e
+      ceil = chunk - 1n; LS.set(CKEY(), String(ceil))
+      chunk = chunk / 4n > MIN_CHUNK ? chunk / 4n : MIN_CHUNK
+    }
+  }
+  return a > to
 }
-
-async function goals(filterArgs) {
-  const logs = await pub.getLogs({ address: D.factory, event: FACTORY[3], args: filterArgs, fromBlock: BigInt(D.block || 0) })
-  return Object.fromEntries(logs.map((l) => [l.args.vault.toLowerCase(), l.args.goal]))
+/** Incremental scan of one factory event with fixed filter args. Returns serialized args of every matching log seen so far. */
+async function scan(name, event, args) {
+  const key = `ms-logs:${D.network}:${D.factory}:${name}`
+  const c = LS.get(key) || { to: String(BigInt(D.block || 0) - 1n), items: [] }
+  try {
+    const head = await pub.getBlockNumber({ cacheTime: 2000 })
+    const start = BigInt(D.block || 0)
+    let from = BigInt(c.to) + 1n - (c.done ? REORG_MARGIN : 0n)
+    if (from < start) from = start
+    const seen = new Set(c.items.map((i) => i.id))
+    c.done = await getLogsChunked({ address: D.factory, event, args }, from, head, (logs, upTo) => {
+      for (const l of logs) { const id = l.transactionHash + ':' + l.logIndex; if (!seen.has(id)) { seen.add(id); c.items.push({ id, block: String(l.blockNumber), args: ser(l.args) }) } }
+      c.to = String(upTo); LS.set(key, c)
+    })
+  } catch (e) { /* keep what we have; the next sync continues */ }
+  return c.items.map((i) => i.args)
+}
+/** Names (goals) from the backend, when MS_API is configured: one request instead of log scans. */
+async function apiUser(who) {
+  const api = (globalThis.MS_API || '').replace(/\/$/, '')
+  if (!api) return null
+  try { const r = await fetch(`${api}/v1/${D.network}/users/${who}`, { signal: AbortSignal.timeout(6000) }); return r.ok ? await r.json() : null } catch (e) { return null }
+}
+async function allowanceNames(owner, need = []) {
+  if (!D.factory) return {}
+  const u = await apiUser(owner)
+  if (u && u.budgets) {
+    const m = Object.fromEntries(u.budgets.map((b) => [b.address.toLowerCase(), b.goal]))
+    if (need.every((a) => m[a.toLowerCase()] !== undefined)) return m
+  }
+  try { return Object.fromEntries((await scan('allow:' + owner.toLowerCase(), ALLOW_EV, { owner })).map((a) => [a.allowance.toLowerCase(), a.goal])) } catch (e) { return {} }
+}
+async function goals({ owner, need = [] }) {
+  const u = await apiUser(owner)
+  if (u && u.vaults) {
+    const m = Object.fromEntries(u.vaults.map((v) => [v.address.toLowerCase(), v.goal]))
+    if (need.every((a) => m[a.toLowerCase()] !== undefined)) return m // the backend may lag behind a brand-new vault
+  }
+  return Object.fromEntries((await scan('created:' + owner.toLowerCase(), FACTORY[3], { owner })).map((a) => [a.vault.toLowerCase(), a.goal]))
+}
+/** Goals of vaults I gifted (owned by other people): cached per vault, scanned only for vaults not seen before. */
+async function giftGoalsOf(addrs) {
+  const key = `ms-giftgoals:${D.network}:${D.factory}`
+  const m = LS.get(key) || {}
+  const missing = addrs.filter((a) => m[a.toLowerCase()] === undefined)
+  if (missing.length) {
+    try {
+      const done = await getLogsChunked({ address: D.factory, event: FACTORY[3], args: { vault: missing } }, BigInt(D.block || 0), await pub.getBlockNumber(), (logs) => {
+        for (const l of logs) m[l.args.vault.toLowerCase()] = l.args.goal
+      })
+      if (done) for (const a of missing) if (m[a.toLowerCase()] === undefined) m[a.toLowerCase()] = ''
+    } catch (e) {}
+    LS.set(key, m)
+  }
+  return m
 }
 
 const MSChain = {
@@ -311,19 +384,19 @@ const MSChain = {
   async state(who) {
     const me = getAddress(who || address)
     const syms = Object.keys(D.tokens)
-    const [bals, gas, myVaults, myGoals, giftLogs, rates] = await Promise.all([
+    const [bals, gas, myVaults, giftLogs, rates] = await Promise.all([
       Promise.all(syms.map((s) => pub.readContract({ address: D.tokens[s].address, abi: ERC20, functionName: 'balanceOf', args: [me] }))),
       pub.getBalance({ address: me }),
       pub.readContract({ address: D.factory, abi: FACTORY, functionName: 'vaultsOf', args: [me] }),
-      goals({ owner: me }),
-      pub.getLogs({ address: D.factory, event: FACTORY[4], args: { from: me }, fromBlock: BigInt(D.block || 0) }),
+      scan('gifted:' + me.toLowerCase(), FACTORY[4], { from: me }),
       Promise.all(syms.map((s) => ratesOf(s).catch(() => ({})))),
     ])
     const native = Number(formatUnits(gas, 18))
     const wallet = Object.fromEntries(syms.map((s, i) => [s, fromUnits(s, bals[i]) + (D.tokens[s].wrapped ? Math.max(0, native - gasReserve()) : 0)]))
+    const myGoals = await goals({ owner: me, need: myVaults })
     const vaults = await Promise.all(myVaults.map(async (a) => ({ ...(await readVault(a)), goal: myGoals[a.toLowerCase()] || '' })))
-    const giftAddrs = giftLogs.map((l) => l.args.vault)
-    const giftGoals = giftAddrs.length ? await goals({ vault: giftAddrs }) : {}
+    const giftAddrs = giftLogs.map((a) => getAddress(a.vault))
+    const giftGoals = giftAddrs.length ? await giftGoalsOf(giftAddrs) : {}
     const gifts = await Promise.all(giftAddrs.map(async (a) => ({ ...(await readVault(a)), goal: giftGoals[a.toLowerCase()] || '' })))
     const best = Object.fromEntries(syms.map((s, i) => [s, bestOf(rates[i])]))
     lastBest = best
@@ -333,7 +406,7 @@ const MSChain = {
     let budgets = []
     try {
       const list = await pub.readContract({ address: D.factory, abi: FACTORY, functionName: 'allowancesOf', args: [me] })
-      if (list.length) { const names = await allowanceNames(me); budgets = await Promise.all(list.map((a) => readAllowance(a, names))) }
+      if (list.length) { const names = await allowanceNames(me, list); budgets = await Promise.all(list.map((a) => readAllowance(a, names))) }
     } catch (e) { /* older factory without budgets */ }
     let chainNow = Date.now()
     try { chainNow = Number((await pub.getBlock({ blockTag: 'latest' })).timestamp) * 1000 } catch (e) {}
