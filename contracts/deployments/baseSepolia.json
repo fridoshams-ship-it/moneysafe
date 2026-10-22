@@ -1,0 +1,34 @@
+{
+  "network": "baseSepolia",
+  "chainId": 84532,
+  "testnet": true,
+  "factory": "0xCA0bDE1117FA6eF9267604a901A780622Ba6d25B",
+  "pool": "0x7173e85551bB194C5f5bEbCcb00b326d502D163e",
+  "block": 48701653,
+  "tokens": {
+    "USDC": {
+      "address": "0x0dE66EEcB74430302B1997Bea346d9511FE1B017",
+      "decimals": 6,
+      "faucet": "10000",
+      "aprBps": 420
+    },
+    "USDT": {
+      "address": "0x51483147EEC872061ecfACD79c54ac11147BC077",
+      "decimals": 6,
+      "faucet": "10000",
+      "aprBps": 390
+    },
+    "ETH": {
+      "address": "0xe2f072dFB68208aB57B0Be63183Af05ec5f0E3FF",
+      "decimals": 18,
+      "faucet": "3",
+      "aprBps": 210
+    },
+    "WBTC": {
+      "address": "0x5388635288C91821729055fd3F19d64DDDedb568",
+      "decimals": 8,
+      "faucet": "0.1",
+      "aprBps": 40
+    }
+  }
+}
