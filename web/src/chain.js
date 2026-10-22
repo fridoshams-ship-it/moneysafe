@@ -6,6 +6,8 @@ import { arbitrumSepolia, polygonAmoy, arbitrum, polygon, base, baseSepolia, har
 import { privateKeyToAccount } from 'viem/accounts'
 import deployments from './deployments.json'
 import './native.js'
+// names as MetaMask's network list spells them (otherwise it warns 'name does not match chain ID')
+const ADD_NAME = { 84532: 'Base Sepolia Testnet', 8453: 'Base Mainnet', 421614: 'Arbitrum Sepolia', 42161: 'Arbitrum One', 80002: 'Polygon Amoy' }
 
 const CHAINS = { 421614: arbitrumSepolia, 80002: polygonAmoy, 42161: arbitrum, 137: polygon, 8453: base, 84532: baseSepolia, 31337: hardhat }
 const EXPLORER = { 421614: 'https://sepolia.arbiscan.io', 80002: 'https://amoy.polygonscan.com', 42161: 'https://arbiscan.io', 137: 'https://polygonscan.com', 8453: 'https://basescan.org', 84532: 'https://sepolia.basescan.org' }
@@ -150,7 +152,7 @@ async function switchChain(p) {
   try { await p.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] }) }
   catch (e) {
     if (e && (e.code === 4902 || /Unrecognized|not added|4902/i.test(String(e.message)))) {
-      await p.request({ method: 'wallet_addEthereumChain', params: [{ chainId: hex, chainName: chain.name, nativeCurrency: chain.nativeCurrency,
+      await p.request({ method: 'wallet_addEthereumChain', params: [{ chainId: hex, chainName: ADD_NAME[chain.id] || chain.name, nativeCurrency: chain.nativeCurrency,
         rpcUrls: [rpc || chain.rpcUrls.default.http[0]], blockExplorerUrls: EXPLORER[chain.id] ? [EXPLORER[chain.id]] : [] }] })
     } else throw e
   }

@@ -1483,6 +1483,8 @@ const budSlide=makeSlide($('#bslide'),$('#bknob'),$('#bsFill'),()=>true,()=>requ
 /* ---------- testnet / blockchain mode ---------- */
 const chainErr=e=>{const nm=e&&(e.cause&&e.cause.data&&e.cause.data.errorName||e.data&&e.data.errorName)||'';const m=String(e&&(e.shortMessage||e.message)||e)+(nm?' '+nm:'')+(/reverted\.?$/.test(String(e&&e.shortMessage))&&!nm?' '+String(e.message||'').slice(0,400):'');if(/NO_PROJECT_ID/.test(m))return 'Вход через WalletConnect ещё не настроен';if(/reject|denied|cancel/i.test(m))return 'Вы отменили действие в кошельке';if(/StillLocked/.test(m))return 'Сейф ещё закрыт: забрать можно только в дату открытия';if(/MoreThanAvailable/.test(m))return 'Столько ещё не открылось. Подождите следующую часть';if(/RaiseTooSoon/.test(m))return 'Увеличить сумму можно только через 30 дней после прошлого изменения';if(/AboveVaultCap/.test(m))return 'Бета-лимит: сумма в одном сейфе ограничена';if(/INSUFFICIENT_ETH/.test(m))return 'Не хватает ETH: часть нужно оставить на оплату газа';if(/insufficient funds|gas/i.test(m))return REAL?'Не хватает ETH в сети '+NETS+' для оплаты газа':'Не хватает тестового ETH для оплаты газа';if(/FaucetCooldown/.test(m))return 'Тестовые токены можно получать раз в сутки';return 'Транзакция не прошла: '+m.slice(0,120)};
 let syncing=false,lastSyncErr=0;
+/* public RPC nodes can lag a block or two right after a transaction: read again a bit later */
+function afterTx(){setTimeout(()=>syncChain(),4000);setTimeout(()=>syncChain(),12000)}
 async function syncChain(manual){if(!CHAIN||!window.MSChain||!MSChain.ready||!S.user||syncing)return;syncing=true;
   try{const st=await MSChain.state(S.user.addr);const M=S.meta||(S.meta={});
     S.vaults.concat(S.gifts).forEach(o=>{if(o.addr){const m=M[o.addr.toLowerCase()];if(m){m.goal=o.goal;m.goalHit=o.goalHit;m.rem3=o.rem3;m.tpl=o.tpl}}});
@@ -1516,21 +1518,21 @@ async function chainLock(d){if(needGas())return lockSlide.reset();
     const M=S.meta||(S.meta={}),id=++S.seq;M[r.vault.toLowerCase()]={id,tpl:d.tpl,goal:d.goal||undefined,toName:d.toName};lastNew=id;buzz(25);
     if(d.gift){addLog('Подарок отправлен',d.n+' · '+(d.toName||short(d.toAddr)),`−${qf(d.q,d.c)} ${d.c}`,d.c,0,id,d.toAddr);note('Подарок «'+d.n+'» заблокирован','Получатель заберёт '+dfmt(d.to),'gift',id)}
     else{addLog('Сейф создан',d.n,`−${qf(d.q,d.c)} ${d.c}`,d.c,0,id);note('Сейф «'+d.n+'» создан','Откроется '+dfmt(d.to),'lock',id)}
-    realLog(r.hash);save();track('vault.created',{coin:d.c,gift:!!d.gift,days:d.days});await syncChain();
+    realLog(r.hash);save();track('vault.created',{coin:d.c,gift:!!d.gift,days:d.days});await syncChain();afterTx();
     $('#pTitle').textContent=(d.gift?'Подарок откроется ':'Заблокировано до ')+dfmt(d.to);$('#pAddr').textContent=short(r.vault);$('#pDone').hidden=false}
   catch(e){st.forEach(x=>{if(x.className==='step run')x.className='step'});$('#pTitle').textContent='Сейф не создан';setErr('pErr',chainErr(e));$('#pRetry').hidden=false}}
 async function chainSend(d){if(needGas())return sendSlide.reset();
   $('#sStep2').hidden=true;$('#sStep3').hidden=false;$('#sDone').hidden=true;$('#sTitle').textContent='Подтвердите в кошельке';
   const st=$$('#sStep3 .step');st.forEach(x=>x.className='step');st[0].className='step run';
   try{const h=await MSChain.send(d.c,d.to,d.q);st.forEach(x=>x.className='step done');buzz(25);
-    addLog('Отправлено',short(d.to),`−${qf(d.q,d.c)} ${d.c}`,d.c,0,null,d.to);realLog(h);sDraft=null;save();await syncChain();
+    addLog('Отправлено',short(d.to),`−${qf(d.q,d.c)} ${d.c}`,d.c,0,null,d.to);realLog(h);sDraft=null;save();await syncChain();afterTx();
     $('#sTitle').textContent='Отправлено '+qf(d.q,d.c)+' '+d.c;$('#sTx').textContent=short(h);$('#sDone').hidden=false}
   catch(e){st.forEach(x=>x.className='step');$('#sTitle').textContent=chainErr(e);setTimeout(()=>{$('#sStep3').hidden=true;$('#sStep2').hidden=false;sendSlide.reset()},2600)}}
 async function chainTop(v,q){if(needGas())return;toast('Подтвердите в кошельке');
-  try{const h=await MSChain.topUp(v.addr,v.c,q);buzz(15);addLog('Сейф пополнен',v.n,`−${qf(q,v.c)} ${v.c}`,v.c,0,v.id);realLog(h);save();await syncChain();renderVD();toast('В сейф добавлено '+qf(q,v.c)+' '+v.c+'. Дата не изменилась')}
+  try{const h=await MSChain.topUp(v.addr,v.c,q);buzz(15);addLog('Сейф пополнен',v.n,`−${qf(q,v.c)} ${v.c}`,v.c,0,v.id);realLog(h);save();await syncChain();afterTx();renderVD();toast('В сейф добавлено '+qf(q,v.c)+' '+v.c+'. Дата не изменилась')}
   catch(e){setErr('tErr',chainErr(e))}}
 async function chainClaim(v){if(needGas())return null;const before=S.wallet[v.c],val=vVal(v);toast('Подтвердите в кошельке');
-  try{const h=await MSChain.withdraw(v.addr);buzz([20,40,20]);await syncChain();const out=Math.max(val,(S.wallet[v.c]||0)-before);
+  try{const h=await MSChain.withdraw(v.addr);buzz([20,40,20]);await syncChain();afterTx();const out=Math.max(val,(S.wallet[v.c]||0)-before);
     addLog('Сейф забран',v.n+' · доход +'+qf(out-v.q,v.c)+' '+v.c,`+${qf(out,v.c)} ${v.c}`,v.c,1,v.id);realLog(h);note('«'+v.n+'» забран в кошелёк',qf(out,v.c)+' '+v.c,'unlock',v.id);save();closeSheet();renderAll();toast('В кошелёк зачислено '+qf(out,v.c)+' '+v.c);return out}
   catch(e){toast(chainErr(e));return null}}
 async function chainBud(d){if(needGas())return budSlide.reset();
@@ -1538,18 +1540,18 @@ async function chainBud(d){if(needGas())return budSlide.reset();
   const st=$$('#bStep3 .step');st.forEach(x=>x.className='step');st[0].className='step run';$('#bpStep3').textContent='Средства отправлены в '+PV(A[d.c].proto);
   try{const r=await MSChain.createBudget({sym:d.c,total:d.total,rate:d.rate,per:d.per,goal:d.n},i=>{st[i].className='step done';if(st[i+1])st[i+1].className='step run';if(i===0)$('#bpTitle').textContent='Создаём бюджет'});
     st.forEach(x=>x.className='step done');const M=S.meta||(S.meta={}),id=++S.seq;M[r.budget.toLowerCase()]={id};bdId=id;buzz(25);
-    addLog('Бюджет создан',d.n+' · '+qf(d.rate,d.c)+' '+d.c+' '+(d.per==='w'?'в неделю':'в день'),`−${qf(d.total,d.c)} ${d.c}`,d.c,0,id);realLog(r.hash);save();track('budget.created',{coin:d.c,per:d.per,n:d.cnt});await syncChain();
+    addLog('Бюджет создан',d.n+' · '+qf(d.rate,d.c)+' '+d.c+' '+(d.per==='w'?'в неделю':'в день'),`−${qf(d.total,d.c)} ${d.c}`,d.c,0,id);realLog(r.hash);save();track('budget.created',{coin:d.c,per:d.per,n:d.cnt});await syncChain();afterTx();
     $('#bpTitle').textContent='Сегодня можно взять '+qf(Math.min(d.rate,d.total),d.c)+' '+d.c;$('#bpAddr').textContent=short(r.budget);$('#bDone').hidden=false}
   catch(e){st.forEach(x=>{if(x.className==='step run')x.className='step'});$('#bpTitle').textContent='Бюджет не создан';setErr('bpErr',chainErr(e));$('#bpRetry').hidden=false}}
 async function chainBudTake(b,q,all){if(needGas())return;toast('Подтвердите в кошельке');
-  try{const h=await MSChain.budgetTake(b.addr,b.c,q,all);buzz(20);addLog('Взято из бюджета',b.n,`+${qf(q,b.c)} ${b.c}`,b.c,1,b.id);realLog(h);save();await syncChain();
+  try{const h=await MSChain.budgetTake(b.addr,b.c,q,all);buzz(20);addLog('Взято из бюджета',b.n,`+${qf(q,b.c)} ${b.c}`,b.c,1,b.id);realLog(h);save();await syncChain();afterTx();
     if(!findB(b.id)){closeSheet();toast('Бюджет «'+b.n+'» завершён')}else{renderBD();toast('В кошелёк зачислено '+qf(q,b.c)+' '+b.c)}}
   catch(e){setErr('btErr',chainErr(e))}}
 async function chainBudRate(b,r){if(needGas())return;toast('Подтвердите в кошельке');
-  try{const old=b.rate,h=await MSChain.budgetRate(b.addr,b.c,r);addLog('Бюджет изменён',b.n+' · '+qf(old,b.c)+' → '+qf(r,b.c)+' '+b.c+' '+bUnit(b),'',b.c,0,b.id);realLog(h);save();await syncChain();renderBD();toast('С '+(b.per==='w'?'следующей недели':'завтра')+': '+qf(r,b.c)+' '+b.c+' '+bUnit(b))}
+  try{const old=b.rate,h=await MSChain.budgetRate(b.addr,b.c,r);addLog('Бюджет изменён',b.n+' · '+qf(old,b.c)+' → '+qf(r,b.c)+' '+b.c+' '+bUnit(b),'',b.c,0,b.id);realLog(h);save();await syncChain();afterTx();renderBD();toast('С '+(b.per==='w'?'следующей недели':'завтра')+': '+qf(r,b.c)+' '+b.c+' '+bUnit(b))}
   catch(e){setErr('brErr',chainErr(e))}}
 async function chainBudTop(b,q){if(needGas())return;toast('Подтвердите в кошельке');
-  try{const h=await MSChain.budgetTopUp(b.addr,b.c,q);buzz(15);addLog('Бюджет пополнен',b.n,`−${qf(q,b.c)} ${b.c}`,b.c,0,b.id);realLog(h);save();await syncChain();renderBD();toast('Добавлено '+qf(q,b.c)+' '+b.c)}
+  try{const h=await MSChain.budgetTopUp(b.addr,b.c,q);buzz(15);addLog('Бюджет пополнен',b.n,`−${qf(q,b.c)} ${b.c}`,b.c,0,b.id);realLog(h);save();await syncChain();afterTx();renderBD();toast('Добавлено '+qf(q,b.c)+' '+b.c)}
   catch(e){setErr('bpErr',chainErr(e))}}
 /* sponsored-gas mode: money that is still in the connected wallet can be moved in without gas (permit) */
 async function paintMove(){const box=$('#dMove');if(!(window.MSChain&&MSChain.gasless)){box.hidden=true;return}
@@ -1558,7 +1560,7 @@ async function paintMove(){const box=$('#dMove');if(!(window.MSChain&&MSChain.ga
   if(!rows.length){box.hidden=true;return}
   box.hidden=false;box.innerHTML=`<div class="bd"><div class="small muted" style="margin-bottom:6px">Ещё в вашем кошельке</div>${rows.map(([c,v])=>`<div class="between"><span class="num">${qf(v.amount,c)} ${c}</span>${v.permit?`<button class="btn pri s" onclick="moveIn('${c}',${v.amount})">Перенести в MoneySafe</button>`:'<span class="muted small">отправьте из кошелька на адрес выше</span>'}</div>`).join('')}</div><p class="muted small" style="margin:6px 2px 0">Кошелёк только подпишет разрешение — газ платит MoneySafe.</p>`}
 async function moveIn(c,q){toast('Подпишите разрешение в кошельке');
-  try{const h=await MSChain.moveFromWallet(c,q,true);buzz(20);addLog('Пополнение','Из кошелька','+'+qf(q,c)+' '+c,c,1);realLog(h);save();await syncChain();paintMove();toast('Перенесено в MoneySafe')}
+  try{const h=await MSChain.moveFromWallet(c,q,true);buzz(20);addLog('Пополнение','Из кошелька','+'+qf(q,c)+' '+c,c,1);realLog(h);save();await syncChain();afterTx();paintMove();toast('Перенесено в MoneySafe')}
   catch(e){toast(chainErr(e))}}
 
 /* ---------- wallets: detection, connection, how-to guides ---------- */
@@ -1607,7 +1609,7 @@ async function paintFaucet(){const i=MSChain.info();$('#dFLbl').textContent='П�
   $('#dGasLink').href=i.gasFaucet||'#';$('#dGasLink').hidden=!i.gasFaucet;
   try{const f=await MSChain.faucetStatus(dC,S.user.addr);$('#dFNote').textContent=f.nextAt>Date.now()?'Следующая выдача: '+hm(f.nextAt):'Бесплатно: '+f.amount+' '+dC+' раз в сутки';$('#dFBtn').disabled=f.nextAt>Date.now()}catch(e){$('#dFNote').textContent=''}}
 async function chainFaucet(){if(needGas())return;const b=$('#dFBtn');b.disabled=true;$('#dFLbl').textContent='Подтвердите в кошельке';
-  try{const f=await MSChain.faucetStatus(dC,S.user.addr);const h=await MSChain.faucet(dC);addLog('Пополнение','Тестовые токены',`+${f.amount} ${dC}`,dC,1);realLog(h);save();await syncChain();toast('Зачислено '+f.amount+' '+dC);paintFaucet()}
+  try{const f=await MSChain.faucetStatus(dC,S.user.addr);const h=await MSChain.faucet(dC);addLog('Пополнение','Тестовые токены',`+${f.amount} ${dC}`,dC,1);realLog(h);save();await syncChain();afterTx();toast('Зачислено '+f.amount+' '+dC);paintFaucet()}
   catch(e){toast(chainErr(e));paintFaucet()}}
 function setupChainUI(){const M=window.MSChain,av=M&&M.available||{};$('#wMode').hidden=!(av.test||av.real);
   $$('#wMode button').forEach(b=>{b.setAttribute('aria-pressed',b.dataset.m===MODE);if(b.dataset.m==='real')b.hidden=!av.real;if(b.dataset.m==='chain')b.hidden=!av.test});
