@@ -25,6 +25,7 @@ jobs:
         env:
           VITE_REOWN_PROJECT_ID: ${{ vars.REOWN_PROJECT_ID }}
           VITE_MS_API: ${{ vars.MS_API }}
+          VITE_PIMLICO_KEY: ${{ secrets.PIMLICO_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with: { path: web/dist }
   deploy:

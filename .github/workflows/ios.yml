@@ -26,6 +26,7 @@ jobs:
         env:
           VITE_REOWN_PROJECT_ID: ${{ vars.REOWN_PROJECT_ID }}
           VITE_MS_API: ${{ vars.MS_API }}
+          VITE_PIMLICO_KEY: ${{ secrets.PIMLICO_KEY }}
       - run: npx cap sync ios
       - name: Build for the iOS simulator (unsigned)
         working-directory: web/ios/App
@@ -65,6 +66,7 @@ jobs:
         env:
           VITE_REOWN_PROJECT_ID: ${{ vars.REOWN_PROJECT_ID }}
           VITE_MS_API: ${{ vars.MS_API }}
+          VITE_PIMLICO_KEY: ${{ secrets.PIMLICO_KEY }}
       - name: Archive, sign and upload to TestFlight
         if: steps.chk.outputs.go == '1'
         working-directory: web/ios/App

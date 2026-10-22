@@ -27,6 +27,7 @@ jobs:
         env:
           VITE_REOWN_PROJECT_ID: ${{ vars.REOWN_PROJECT_ID }}
           VITE_MS_API: ${{ vars.MS_API }}
+          VITE_PIMLICO_KEY: ${{ secrets.PIMLICO_KEY }}
       - run: npx cap sync android
       - name: Build APK
         working-directory: web/android

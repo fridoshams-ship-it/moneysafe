@@ -1,0 +1,43 @@
+// Sponsored gas end to end: a wallet with ZERO ETH uses MoneySafe through a smart account; the local paymaster pays.
+const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
+const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto');
+const RPC = 'http://127.0.0.1:8545';
+const rpc = (method, params = [], url = RPC) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) }).then(r => r.json()).then(j => j.result);
+const AA = JSON.parse(fs.readFileSync(path.join(__dirname, 'aa-local.json'), 'utf8'));
+(async () => {
+  const root = process.argv[2];
+  const srv = http.createServer((q, r) => { let f = path.join(root, decodeURIComponent(q.url.split('?')[0])); if (f.endsWith('/')) f += 'index.html'; if (!fs.existsSync(f)) { r.writeHead(404); return r.end() }
+    r.writeHead(200, { 'content-type': { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.json': 'application/json' }[path.extname(f)] || 'application/octet-stream' }); fs.createReadStream(f).pipe(r) }).listen(8772);
+  const key = '0x' + crypto.randomBytes(32).toString('hex');
+  const b = await chromium.launch();
+  const ctx = await b.newContext({ viewport: { width: 400, height: 860 }, locale: 'ru-RU' });
+  await ctx.addInitScript(([key, aa]) => { window.MS_DEV_KEY = key; window.MS_NETWORK = 'localhost'; window.MS_RPC = 'http://127.0.0.1:8545';
+    window.MS_BUNDLER_URL = 'http://127.0.0.1:4337'; window.MS_PAYMASTER_URL = 'http://127.0.0.1:4337'; window.MS_AA = { entryPoint: aa.entryPoint, factory: aa.factory };
+    try { localStorage.setItem('moneysafe-mode', 'chain') } catch (e) {} }, [key, AA]);
+  const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error' && !/fonts|ERR_TUNNEL|Failed to load|net::/.test(m.text())) errs.push('console: ' + m.text()) });
+  const log = (...a) => console.log(...a);
+  await p.goto('http://localhost:8772/'); await p.waitForTimeout(1500);
+  await p.click('#chainLoginBtn'); await p.waitForSelector('#app:not([hidden])', { timeout: 20000 }); await p.waitForTimeout(2000);
+  await p.evaluate(() => { S.seenIntro = 1; closeSheet() });
+  const info = await p.evaluate(() => ({ gasless: MSChain.gasless, account: MSChain.address, signer: MSChain.signer, gasLbl: document.querySelector('.gasLbl').textContent, needGas: needGas() }));
+  log('gasless:', JSON.stringify(info));
+  await p.evaluate(() => { dC = 'USDC'; return chainFaucet() }); await p.waitForFunction(() => S.wallet.USDC > 0, null, { timeout: 30000 });
+  log('faucet via sponsored user operation → USDC', await p.evaluate(() => S.wallet.USDC));
+  await p.click('.act:has-text("Новый сейф")'); await p.waitForTimeout(500);
+  await p.fill('#nAmt', '1000'); await p.click('#nTerm button[data-m="1"]'); await p.click('#nStep1 >> text=Продолжить'); await p.waitForTimeout(300);
+  await p.evaluate(() => lockIt()); await p.waitForSelector('#pDone:not([hidden])', { timeout: 40000 });
+  log('vault:', await p.textContent('#pTitle'), '| owner on chain is the smart account:', await p.evaluate(() => MSChain.state(S.user.addr).then(s => s.vaults.length)));
+  await p.evaluate(() => closeSheet());
+  await p.evaluate(() => { openBudget(); $('#bTotal').value = '200'; $('#bRate').value = '20'; calcBud(); budConfirm(); return budIt() }); await p.waitForSelector('#bDone:not([hidden])', { timeout: 40000 });
+  log('budget:', await p.textContent('#bpTitle'));
+  await p.evaluate(() => MSChain.budgetTake(S.budgets[0].addr, 'USDC', 20, false)); await p.evaluate(() => syncChain()); await p.waitForTimeout(800);
+  log('took 20 from budget; wallet USDC', await p.evaluate(() => S.wallet.USDC));
+  const early = await p.evaluate(() => MSChain.withdraw(S.vaults[0].addr).then(() => 'went through!', e => chainErr(e).slice(0, 60)));
+  log('early vault withdraw through the smart account:', early);
+  const eoaEth = parseInt(await rpc('eth_getBalance', [info.signer, 'latest']), 16), saEth = parseInt(await rpc('eth_getBalance', [info.account, 'latest']), 16);
+  log('ETH spent by the user — wallet:', eoaEth, 'smart account:', saEth, '| user operations sponsored:', await rpc('debug_sponsored', [], 'http://127.0.0.1:4337'));
+  await p.evaluate(() => go('hist')); await p.waitForTimeout(300);
+  log('history:', await p.evaluate(() => S.log.slice(0, 5).map(l => l.t + (l.real ? '✓' : '')).join(' | ')));
+  log('ERRORS:', errs.length ? errs.join(' | ') : 'none');
+  await b.close(); srv.close();
+})();

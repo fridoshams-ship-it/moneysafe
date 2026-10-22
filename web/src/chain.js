@@ -54,6 +54,7 @@ const VAULT = parseAbi([
   'function withdrawnTotal() view returns (uint256)',
   'function withdraw()',
   'function withdrawPartial(uint256)',
+  'error StillLocked(uint64 unlockTime)', 'error NotOwner()', 'error AlreadyWithdrawn()',
 ])
 const POOL = parseAbi(['function getReserveData(address) view returns ((uint256 configuration,uint128 liquidityIndex,uint128 currentLiquidityRate,uint128 variableBorrowIndex,uint128 currentVariableBorrowRate,uint128 currentStableBorrowRate,uint40 lastUpdateTimestamp,uint16 id,address aTokenAddress,address stableDebtTokenAddress,address variableDebtTokenAddress,address interestRateStrategyAddress,uint128 accruedToTreasury,uint128 unbacked,uint128 isolationModeTotalDebt))'])
 
@@ -67,9 +68,18 @@ function pickDeployment() {
 }
 const AVAILABLE = { real: Object.values(deployments || {}).some((d) => !d.testnet), test: Object.values(deployments || {}).some((d) => d.testnet),
   realNets: Object.values(deployments || {}).filter((d) => !d.testnet).map((d) => ({ network: d.network, name: (CHAINS[d.chainId] || {}).name || d.network })) }
-const GAS_RESERVE = 0.0003 // native ETH kept for gas when wrapping ETH into a vault
+const GAS_RESERVE_EOA = 0.0003 // native ETH kept for gas when wrapping ETH into a vault (not needed with sponsored gas)
 
 const D = pickDeployment()
+
+// Sponsored gas (ERC-4337): with a bundler + paymaster the user's MoneySafe address is a smart account owned by their wallet,
+// and MoneySafe pays the gas. Pimlico: set VITE_PIMLICO_KEY at build time (or MS_PIMLICO_KEY); any ERC-4337/7677 service: MS_BUNDLER_URL + MS_PAYMASTER_URL.
+const PIMLICO = (globalThis.MS_PIMLICO_KEY || import.meta.env.VITE_PIMLICO_KEY || '').trim()
+const BUNDLER = (globalThis.MS_BUNDLER_URL || '').trim() || (PIMLICO && D ? `https://api.pimlico.io/v2/${D.chainId}/rpc?apikey=${PIMLICO}` : '')
+const PAYMASTER = (globalThis.MS_PAYMASTER_URL || '').trim() || BUNDLER
+const AA = globalThis.MS_AA || {} // { entryPoint, factory } overrides, for local tests
+let sac = null // smart account client when gas is sponsored
+let signerAddress = null
 const chain = D ? CHAINS[D.chainId] : null
 const rpc = (globalThis.MS_RPC || '').trim() || undefined
 const pub = D ? createPublicClient({ chain, transport: http(rpc) }) : null
@@ -100,7 +110,8 @@ async function initAppKit() {
       if (acc.isConnected && acc.address) {
         const wc = await core.getWalletClient(adapter.wagmiConfig, { chainId: chain.id }).catch(() => null)
         wallet = wc; address = getAddress(acc.address)
-      } else { wallet = null; address = null }
+        await onSigner(); return
+      } else { wallet = null; address = null; sac = null }
       emit()
     },
   })
@@ -123,18 +134,17 @@ function useInjected(p, a) {
   address = getAddress(a)
   if (!p.__msListen && p.on) {
     p.__msListen = true
-    p.on('accountsChanged', (acc) => { if (acc && acc[0]) useInjected(p, acc[0]); else { wallet = null; address = null; emit() } })
+    p.on('accountsChanged', (acc) => { if (acc && acc[0]) useInjected(p, acc[0]); else { wallet = null; address = null; sac = null; emit() } })
     p.on('chainChanged', () => {})
   }
-  emit()
+  return onSigner()
 }
 async function connectInjected(silent) {
   const p = eth(); if (!p) return null
   const acc = await p.request({ method: silent ? 'eth_accounts' : 'eth_requestAccounts' })
   if (!acc || !acc[0]) return null
   if (!silent) await switchChain(p)
-  useInjected(p, acc[0])
-  return address
+  return useInjected(p, acc[0])
 }
 async function ensureChain() {
   if (!injected) return
@@ -146,7 +156,35 @@ function useDevKey(pk) {
   const account = privateKeyToAccount(pk)
   wallet = createWalletClient({ account, chain, transport: http(rpc) })
   address = account.address
+  return onSigner()
+}
+const gasReserve = () => (sac ? 0 : GAS_RESERVE_EOA)
+/** Sends one user operation and waits for it. A user operation whose inner call reverts still lands on chain, so check `success`. */
+async function sendOp(calls) {
+  const hash = await sac.sendUserOperation({ calls })
+  const r = await sac.waitForUserOperationReceipt({ hash, timeout: 120000 })
+  if (!r.success) throw new Error('TX_FAILED')
+  return { ...r.receipt, logs: r.logs, transactionHash: r.receipt.transactionHash }
+}
+/** Called whenever the wallet (signer) changes. With sponsored gas, wraps it into a smart account. */
+async function onSigner() {
+  sac = null; signerAddress = address
+  if (BUNDLER && wallet && address) {
+    try {
+      const [{ createSmartAccountClient }, { toSimpleSmartAccount }, aa] = await Promise.all([import('permissionless'), import('permissionless/accounts'), import('viem/account-abstraction')])
+      const owner = wallet.account && wallet.account.type === 'local' ? wallet.account : wallet
+      const account = await toSimpleSmartAccount({ client: pub, owner, entryPoint: { address: AA.entryPoint || aa.entryPoint07Address, version: '0.7' }, ...(AA.factory ? { factoryAddress: AA.factory } : {}) })
+      const paymaster = aa.createPaymasterClient({ transport: http(PAYMASTER) })
+      const isPimlico = /pimlico\.io/.test(BUNDLER)
+      sac = createSmartAccountClient({ account, chain, bundlerTransport: http(BUNDLER), client: pub, paymaster,
+        userOperation: { estimateFeesPerGas: async () => {
+          if (isPimlico) { const { createPimlicoClient } = await import('permissionless/clients/pimlico'); return (await createPimlicoClient({ transport: http(BUNDLER) }).getUserOperationGasPrice()).fast }
+          const f = await pub.estimateFeesPerGas(); return { maxFeePerGas: f.maxFeePerGas * 2n, maxPriorityFeePerGas: f.maxPriorityFeePerGas * 2n } } } })
+      address = getAddress(account.address)
+    } catch (e) { console.warn('sponsored gas unavailable, using the wallet directly', e && (e.shortMessage || e.message)); sac = null }
+  }
   emit()
+  return address
 }
 
 async function waitTx(hash) {
@@ -154,7 +192,14 @@ async function waitTx(hash) {
   if (r.status !== 'success') throw new Error('TX_FAILED')
   return r
 }
-const write = async (req) => { await ensureChain(); return waitTx(await wallet.writeContract({ account: wallet.account, chain, ...req })) }
+const write = async (req) => {
+  if (sac) {
+    // simulate from the smart account first: a revert (e.g. StillLocked) surfaces with its reason and costs no sponsored gas
+    await pub.simulateContract({ ...req, account: sac.account.address })
+    return sendOp([{ to: req.address, abi: req.abi, functionName: req.functionName, args: req.args, value: req.value }])
+  }
+  await ensureChain(); return waitTx(await wallet.writeContract({ account: wallet.account, chain, ...req }))
+}
 const wrapped = (sym) => !!D.tokens[sym].wrapped
 /** For WETH-backed ETH: wrap just the missing part from native ETH, keeping a little for gas. */
 async function ensureWrapped(sym, amt) {
@@ -164,7 +209,7 @@ async function ensureWrapped(sym, amt) {
   if (have >= amt) return null
   const need = amt - have
   const native = await pub.getBalance({ address })
-  if (native - parseUnits(String(GAS_RESERVE), 18) < need) throw new Error('INSUFFICIENT_ETH')
+  if (native - parseUnits(String(gasReserve()), 18) < need) throw new Error('INSUFFICIENT_ETH')
   return (await write({ address: token, abi: WETH, functionName: 'deposit', value: need })).transactionHash
 }
 const dec = (sym) => D.tokens[sym].decimals
@@ -233,12 +278,12 @@ const MSChain = {
   get hasInjected() { return !!eth() },
   get hasWalletConnect() { return !!(globalThis.MS_REOWN_PROJECT_ID || import.meta.env.VITE_REOWN_PROJECT_ID || '').trim() },
   info() { return D ? { network: D.network, chainId: D.chainId, chainName: chain.name, testnet: !!D.testnet, factory: D.factory, explorer: EXPLORER[D.chainId] || '', gasFaucet: GAS_FAUCET[D.chainId] || '', tokens: Object.keys(D.tokens),
-    caps: Object.fromEntries(Object.entries(D.tokens).filter(([, t]) => t.cap).map(([s, t]) => [s, Number(t.cap)])), gasReserve: D.testnet ? 0 : GAS_RESERVE } : null },
+    caps: Object.fromEntries(Object.entries(D.tokens).filter(([, t]) => t.cap).map(([s, t]) => [s, Number(t.cap)])), gasReserve: D.testnet ? 0 : gasReserve(), gasless: !!sac } : null },
   onChange(f) { listeners.add(f); return () => listeners.delete(f) },
 
   async connect() {
     const dev = globalThis.MS_DEV_KEY
-    if (dev) { useDevKey(dev); return address }
+    if (dev) return useDevKey(dev)
     if (eth()) { const a = await connectInjected(false); if (a) return a; throw new Error('CANCELLED') }
     const kit = await initAppKit()
     if (address) return address
@@ -250,13 +295,17 @@ const MSChain = {
   },
   /** Re-attach a session that was connected before (AppKit restores it by itself). */
   async restore(ms = 3500) {
-    if (globalThis.MS_DEV_KEY) { useDevKey(globalThis.MS_DEV_KEY); return address }
+    if (globalThis.MS_DEV_KEY) return useDevKey(globalThis.MS_DEV_KEY)
     if (eth()) { try { return await connectInjected(true) } catch (e) { return null } }
     try { await initAppKit() } catch (e) { return null }
     if (address) return address
     return new Promise((res) => { const off = MSChain.onChange((a) => { if (a) { off(); res(a) } }); setTimeout(() => { off(); res(address) }, ms) })
   },
-  async disconnect() { try { if (appkit) await appkit.disconnect() } catch (e) {} injected = null; wallet = null; address = null; emit() },
+  async disconnect() { try { if (appkit) await appkit.disconnect() } catch (e) {} injected = null; wallet = null; address = null; sac = null; emit() },
+  /** true when MoneySafe pays the gas (smart account + paymaster) */
+  get gasless() { return !!sac },
+  get gaslessConfigured() { return !!BUNDLER },
+  get signer() { return signerAddress },
 
   /** Full picture for the app: balances, my vaults, gifts I sent, gas, rates. */
   async state(who) {
@@ -271,7 +320,7 @@ const MSChain = {
       Promise.all(syms.map((s) => ratesOf(s).catch(() => ({})))),
     ])
     const native = Number(formatUnits(gas, 18))
-    const wallet = Object.fromEntries(syms.map((s, i) => [s, fromUnits(s, bals[i]) + (D.tokens[s].wrapped ? Math.max(0, native - GAS_RESERVE) : 0)]))
+    const wallet = Object.fromEntries(syms.map((s, i) => [s, fromUnits(s, bals[i]) + (D.tokens[s].wrapped ? Math.max(0, native - gasReserve()) : 0)]))
     const vaults = await Promise.all(myVaults.map(async (a) => ({ ...(await readVault(a)), goal: myGoals[a.toLowerCase()] || '' })))
     const giftAddrs = giftLogs.map((l) => l.args.vault)
     const giftGoals = giftAddrs.length ? await goals({ vault: giftAddrs }) : {}
@@ -364,7 +413,7 @@ const MSChain = {
     const amt = toUnits(sym, amount)
     if (wrapped(sym)) {
       const native = await pub.getBalance({ address })
-      if (native - parseUnits(String(GAS_RESERVE), 18) >= amt) { await ensureChain(); return (await waitTx(await wallet.sendTransaction({ account: wallet.account, chain, to: getAddress(to), value: amt }))).transactionHash }
+      if (native - parseUnits(String(gasReserve()), 18) >= amt) { if (sac) return (await sendOp([{ to: getAddress(to), value: amt }])).transactionHash; await ensureChain(); return (await waitTx(await wallet.sendTransaction({ account: wallet.account, chain, to: getAddress(to), value: amt }))).transactionHash }
       const w = await pub.readContract({ address: D.tokens[sym].address, abi: ERC20, functionName: 'balanceOf', args: [address] })
       if (w < amt) await ensureWrapped(sym, amt)
     }
