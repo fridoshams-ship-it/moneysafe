@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import {IPool} from "../interfaces/IPool.sol";
 
 /// @title Test tokens and an Aave-compatible lending market for the MoneySafe TESTNET beta.
@@ -9,7 +10,8 @@ import {IPool} from "../interfaces/IPool.sol";
 ///         The market pays a fixed APR that accrues every second, so the app shows real on-chain yield.
 
 /// Faucet token: anyone can mint `faucetAmount` once per `faucetCooldown`. The market may mint yield.
-contract TestToken is ERC20 {
+/// Supports EIP-2612 permit, like USDC, so gas-free moves into a MoneySafe account can be tested.
+contract TestToken is ERC20, ERC20Permit {
     uint8 private immutable _dec;
     uint256 public immutable faucetAmount;
     uint256 public constant faucetCooldown = 1 days;
@@ -19,7 +21,7 @@ contract TestToken is ERC20 {
     error FaucetCooldown(uint256 nextAt);
     error OnlyMinter();
 
-    constructor(string memory n, string memory s, uint8 d, uint256 faucetAmount_) ERC20(n, s) {
+    constructor(string memory n, string memory s, uint8 d, uint256 faucetAmount_) ERC20(n, s) ERC20Permit(n) {
         _dec = d;
         faucetAmount = faucetAmount_;
         minter = msg.sender;

@@ -1,7 +1,7 @@
 // MoneySafe chain layer: talks to the MoneySafe contracts on a real network.
 // Wallets: Reown AppKit (WalletConnect, email and Google/Apple logins) or, for automated tests only, a dev key.
 // The app (index.html) calls window.MSChain; it never touches the blockchain directly.
-import { createPublicClient, createWalletClient, http, custom, parseAbi, numberToHex, formatUnits, parseUnits, getAddress, parseEventLogs } from 'viem'
+import { createPublicClient, createWalletClient, http, custom, parseAbi, numberToHex, parseSignature, formatUnits, parseUnits, getAddress, parseEventLogs } from 'viem'
 import { arbitrumSepolia, polygonAmoy, arbitrum, polygon, base, baseSepolia, hardhat } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import deployments from './deployments.json'
@@ -20,6 +20,17 @@ const ERC20 = parseAbi([
   'function lastFaucet(address) view returns (uint256)',
 ])
 const WETH = parseAbi(['function deposit() payable', 'function withdraw(uint256)'])
+const PERMIT = parseAbi(['function nonces(address) view returns (uint256)', 'function name() view returns (string)', 'function version() view returns (string)',
+  'function eip712Domain() view returns (bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)',
+  'function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)',
+  'function transferFrom(address from, address to, uint256 value) returns (bool)'])
+async function permitDomain(token) {
+  const d = await pub.readContract({ address: token, abi: PERMIT, functionName: 'eip712Domain' }).catch(() => null)
+  if (d) return { name: d[1], version: d[2], chainId: Number(d[3]), verifyingContract: d[4] }
+  await pub.readContract({ address: token, abi: PERMIT, functionName: 'nonces', args: [signerAddress] }) // throws when permit is not supported
+  const [name, version] = await Promise.all([pub.readContract({ address: token, abi: PERMIT, functionName: 'name' }), pub.readContract({ address: token, abi: PERMIT, functionName: 'version' }).catch(() => '1')])
+  return { name, version, chainId: chain.id, verifyingContract: token }
+}
 const FACTORY = parseAbi([
   'function createVaultWith(uint8 protocol, address recipient, address asset, uint256 amount, uint64 unlockTime, string goal) returns (address)',
   'function topUp(address vault, uint256 amount)',
@@ -413,6 +424,36 @@ const MSChain = {
     return { address: me, wallet, gas: Number(formatUnits(gas, 18)), vaults, gifts, budgets, apr, proto, rates: allRates, at: Date.now(), chainNow }
   },
 
+  /** Sponsored-gas mode: what is still in the connected wallet itself, and whether it can be moved without gas (EIP-2612 permit). */
+  async walletAssets() {
+    if (!sac || !signerAddress) return null
+    const out = {}
+    await Promise.all(Object.entries(D.tokens).map(async ([sym, t]) => {
+      const bal = await pub.readContract({ address: t.address, abi: ERC20, functionName: 'balanceOf', args: [signerAddress] }).catch(() => 0n)
+      if (bal > 0n) out[sym] = { amount: fromUnits(sym, bal), permit: !!(await permitDomain(t.address).catch(() => null)) }
+    }))
+    out.ETH_NATIVE = Number(formatUnits(await pub.getBalance({ address: signerAddress }), 18))
+    return out
+  },
+  /** Moves `amount` of `sym` from the wallet into the MoneySafe account: the wallet signs a permit (free), MoneySafe pays the gas. */
+  async moveFromWallet(sym, amount, all) {
+    if (!sac) throw new Error('NOT_GASLESS')
+    const token = D.tokens[sym].address
+    const value = all ? await pub.readContract({ address: token, abi: ERC20, functionName: 'balanceOf', args: [signerAddress] }) : toUnits(sym, amount)
+    const domain = await permitDomain(token)
+    const nonce = await pub.readContract({ address: token, abi: PERMIT, functionName: 'nonces', args: [signerAddress] })
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600)
+    const message = { owner: signerAddress, spender: address, value, nonce, deadline }
+    const sig = await wallet.signTypedData({ account: wallet.account, domain, primaryType: 'Permit', message,
+      types: { Permit: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' }] } })
+    const { r, s, v, yParity } = parseSignature(sig)
+    const vv = v !== undefined ? Number(v) : 27 + yParity
+    const rc = await sendOp([
+      { to: token, abi: PERMIT, functionName: 'permit', args: [signerAddress, address, value, deadline, vv, r, s] },
+      { to: token, abi: PERMIT, functionName: 'transferFrom', args: [signerAddress, address, value] },
+    ])
+    return rc.transactionHash
+  },
   async faucetStatus(sym, who) {
     const last = Number(await pub.readContract({ address: D.tokens[sym].address, abi: ERC20, functionName: 'lastFaucet', args: [getAddress(who || address)] }))
     return { nextAt: last ? (last + 86400) * 1000 : 0, amount: D.tokens[sym].faucet }

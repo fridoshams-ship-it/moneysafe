@@ -37,6 +37,18 @@ const AA = JSON.parse(fs.readFileSync(path.join(__dirname, 'aa-local.json'), 'ut
   const eoaEth = parseInt(await rpc('eth_getBalance', [info.signer, 'latest']), 16), saEth = parseInt(await rpc('eth_getBalance', [info.account, 'latest']), 16);
   log('ETH spent by the user — wallet:', eoaEth, 'smart account:', saEth, '| user operations sponsored:', await rpc('debug_sponsored', [], 'http://127.0.0.1:4337'));
   await p.evaluate(() => go('hist')); await p.waitForTimeout(300);
+  // money left in the wallet itself: move it in with a permit signature, MoneySafe pays the gas
+  const D = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../contracts/deployments/localhost.json'), 'utf8'));
+  const funder = (await rpc('eth_accounts'))[3];
+  await rpc('eth_sendTransaction', [{ from: funder, to: D.tokens.USDC.address, data: '0xde5f72fd' }]);
+  const pad = (a) => a.toLowerCase().replace('0x', '').padStart(64, '0');
+  await rpc('eth_sendTransaction', [{ from: funder, to: D.tokens.USDC.address, data: '0xa9059cbb' + pad(info.signer) + (250n * 10n ** 6n).toString(16).padStart(64, '0') }]);
+  await p.evaluate(() => openDeposit()); await p.waitForSelector('#dMove:not([hidden]) button', { timeout: 15000 });
+  log('deposit sheet offers:', (await p.textContent('#dMove')).replace(/\s+/g, ' ').slice(0, 120));
+  const before = await p.evaluate(() => S.wallet.USDC);
+  await p.click('#dMove button'); await p.waitForFunction((b) => S.wallet.USDC > b, before, { timeout: 40000 });
+  log('moved from wallet:', (await p.evaluate(() => S.wallet.USDC)) - before, 'USDC | wallet ETH still', parseInt(await rpc('eth_getBalance', [info.signer, 'latest']), 16));
+  await p.evaluate(() => closeSheet());
   log('history:', await p.evaluate(() => S.log.slice(0, 5).map(l => l.t + (l.real ? '✓' : '')).join(' | ')));
   log('ERRORS:', errs.length ? errs.join(' | ') : 'none');
   await b.close(); srv.close();
