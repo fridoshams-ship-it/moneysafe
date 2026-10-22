@@ -1,13 +1,15 @@
 name: Deploy testnet
 # Manual: Actions → "Deploy testnet" → Run workflow.
-# Needs repository secrets: DEPLOYER_KEY (a NEW wallet used only for testnet) and ARB_SEPOLIA_RPC (or AMOY_RPC).
+# Needs repository secret DEPLOYER_KEY (a NEW wallet used only for testnet, with test ETH on the chosen network).
+# RPC secrets (ARB_SEPOLIA_RPC, BASE_SEPOLIA_RPC, AMOY_RPC) are optional: public RPCs are used by default.
 on:
   workflow_dispatch:
     inputs:
       network:
-        description: "arbitrumSepolia or polygonAmoy"
+        description: "Test network"
+        type: choice
+        options: [arbitrumSepolia, baseSepolia, polygonAmoy]
         default: arbitrumSepolia
-        required: true
 permissions:
   contents: write
 jobs:
@@ -23,8 +25,9 @@ jobs:
       - name: Deploy test tokens, market and factory
         env:
           DEPLOYER_KEY: ${{ secrets.DEPLOYER_KEY }}
-          ARB_SEPOLIA_RPC: ${{ secrets.ARB_SEPOLIA_RPC }}
-          AMOY_RPC: ${{ secrets.AMOY_RPC }}
+          ARB_SEPOLIA_RPC: ${{ secrets.ARB_SEPOLIA_RPC || 'https://sepolia-rollup.arbitrum.io/rpc' }}
+          BASE_SEPOLIA_RPC: ${{ secrets.BASE_SEPOLIA_RPC || 'https://sepolia.base.org' }}
+          AMOY_RPC: ${{ secrets.AMOY_RPC || 'https://rpc-amoy.polygon.technology' }}
         run: npx hardhat run scripts/deploy-testnet.js --network ${{ inputs.network }}
       - name: Save addresses to the repo
         run: |

@@ -23,6 +23,7 @@ const networks = Object.fromEntries(Object.entries({
   base: net("BASE_RPC", 8453),
   polygonAmoy: net("AMOY_RPC", 80002),
   arbitrumSepolia: net("ARB_SEPOLIA_RPC", 421614),
+  baseSepolia: net("BASE_SEPOLIA_RPC", 84532),
 }).filter(([, v]) => v));
 if (process.env.FORK_URL) networks.hardhat = { forking: { url: process.env.FORK_URL } };
 
