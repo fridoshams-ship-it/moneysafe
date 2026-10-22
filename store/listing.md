@@ -18,7 +18,7 @@
 MoneySafe — сейф от самого себя. Вы блокируете криптовалюту до выбранной даты, и раньше этой даты деньги не откроет никто: ни вы, ни MoneySafe, ни поддержка. Пока деньги ждут, они приносят доход в крупнейших протоколах займов — Aave и Compound.
 
 Сейф до даты
-• Срок — 1, 3, 6 месяцев, год или любая своя дата.
+• Срок — 1, 3, 6 месяцев, год или своя дата и время, до минуты.
 • Цели: квартира, подушка безопасности, машина, отпуск или своя.
 • Цель по сумме и прогресс, обратный отсчёт до открытия.
 • Сейф в подарок: заберёт только получатель и только в дату открытия.
@@ -56,7 +56,7 @@ MoneySafe — сейф от самого себя. Вы блокируете к�
 MoneySafe — oʻzingizdan seyf. Siz kriptovalyutani tanlangan sanagacha qulflaysiz va shu sanagacha pulni hech kim ocholmaydi: na siz, na MoneySafe, na qoʻllab-quvvatlash xizmati. Pul kutayotganda eng yirik qarz protokollari — Aave va Compound’da daromad keltiradi.
 
 Sanagacha seyf
-• Muddat — 1, 3, 6 oy, bir yil yoki istalgan sana.
+• Muddat — 1, 3, 6 oy, bir yil yoki istalgan sana va vaqt, daqiqagacha aniq.
 • Maqsadlar: kvartira, xavfsizlik yostigʻi, mashina, taʼtil yoki oʻzingizniki.
 • Summa boʻyicha maqsad va progress, ochilishgacha teskari sanoq.
 • Sovgʻa seyf: faqat qabul qiluvchi va faqat ochilish sanasida oladi.
@@ -94,7 +94,7 @@ Muhim: protokollardagi daromad oʻzgaruvchan va kafolatlanmagan. Kriptovalyutala
 MoneySafe is a safe from yourself. You lock crypto until the date you choose, and nobody can open it earlier — not you, not MoneySafe, not support. While the money waits, it earns interest in the largest lending protocols, Aave and Compound.
 
 Safe until a date
-• 1, 3, 6 months, a year or any date.
+• 1, 3, 6 months, a year or any date and time, to the minute.
 • Goals: a home, an emergency fund, a car, a trip or your own.
 • Amount goal with progress, a countdown to unlock.
 • Gift safe: only the recipient can take it, and only on the unlock date.
