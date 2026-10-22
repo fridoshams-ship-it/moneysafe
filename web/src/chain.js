@@ -5,6 +5,7 @@ import { createPublicClient, createWalletClient, http, custom, parseAbi, numberT
 import { arbitrumSepolia, polygonAmoy, arbitrum, polygon, base, baseSepolia, hardhat } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import deployments from './deployments.json'
+import './native.js'
 
 const CHAINS = { 421614: arbitrumSepolia, 80002: polygonAmoy, 42161: arbitrum, 137: polygon, 8453: base, 84532: baseSepolia, 31337: hardhat }
 const EXPLORER = { 421614: 'https://sepolia.arbiscan.io', 80002: 'https://amoy.polygonscan.com', 42161: 'https://arbiscan.io', 137: 'https://polygonscan.com', 8453: 'https://basescan.org', 84532: 'https://sepolia.basescan.org' }
