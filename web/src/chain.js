@@ -100,7 +100,22 @@ let wallet = null // viem wallet client
 let address = null
 let appkit = null
 let injected = null // window.ethereum of MetaMask / Trust / other in-wallet browsers
-const eth = () => globalThis.ethereum || null
+// Wallets found on this device: EIP-6963 (every modern extension and in-wallet browser announces itself) + legacy window.ethereum.
+const found = new Map()
+let chosenId = (() => { try { return localStorage.getItem('ms-wallet') || '' } catch (e) { return '' } })()
+let connectedVia = null // { kind: 'injected' | 'walletconnect' | 'dev', name, icon }
+if (globalThis.addEventListener) {
+  globalThis.addEventListener('eip6963:announceProvider', (e) => { const d = e.detail; if (d && d.info && d.provider) found.set(d.info.uuid, d) })
+  globalThis.dispatchEvent?.(new Event('eip6963:requestProvider'))
+}
+const legacyName = (p) => p.isMetaMask ? 'MetaMask' : p.isTrust || p.isTrustWallet ? 'Trust Wallet' : p.isCoinbaseWallet ? 'Coinbase Wallet' : p.isOkxWallet || p.isOKExWallet ? 'OKX Wallet' : p.isBitKeep || p.isBitgetWallet ? 'Bitget Wallet' : p.isPhantom ? 'Phantom' : p.isRabby ? 'Rabby' : 'Кошелёк браузера'
+function walletList() {
+  const list = [...found.values()].map((d) => ({ id: d.info.uuid, rdns: d.info.rdns, name: d.info.name, icon: d.info.icon, provider: d.provider }))
+  if (!list.length && globalThis.ethereum) list.push({ id: 'injected', rdns: '', name: legacyName(globalThis.ethereum), icon: '', provider: globalThis.ethereum })
+  return list
+}
+const providerFor = (id) => { const l = walletList(); return (l.find((w) => w.id === id || (w.rdns && w.rdns === id)) || l[0] || {}).provider || null }
+const eth = () => providerFor(chosenId)
 const listeners = new Set()
 const emit = () => listeners.forEach((f) => { try { f(address) } catch (e) {} })
 
@@ -121,6 +136,7 @@ async function initAppKit() {
       if (acc.isConnected && acc.address) {
         const wc = await core.getWalletClient(adapter.wagmiConfig, { chainId: chain.id }).catch(() => null)
         wallet = wc; address = getAddress(acc.address)
+        connectedVia = { kind: 'walletconnect', name: (appkit && appkit.getWalletInfo && appkit.getWalletInfo()?.name) || 'WalletConnect', icon: (appkit && appkit.getWalletInfo && appkit.getWalletInfo()?.icon) || '' }
         await onSigner(); return
       } else { wallet = null; address = null; sac = null }
       emit()
@@ -150,11 +166,13 @@ function useInjected(p, a) {
   }
   return onSigner()
 }
-async function connectInjected(silent) {
-  const p = eth(); if (!p) return null
+async function connectInjected(silent, p = eth()) {
+  if (!p) return null
   const acc = await p.request({ method: silent ? 'eth_accounts' : 'eth_requestAccounts' })
   if (!acc || !acc[0]) return null
   if (!silent) await switchChain(p)
+  const w = walletList().find((x) => x.provider === p)
+  connectedVia = { kind: 'injected', name: w ? w.name : legacyName(p), icon: w ? w.icon : '' }
   return useInjected(p, acc[0])
 }
 async function ensureChain() {
@@ -365,9 +383,29 @@ const MSChain = {
     caps: Object.fromEntries(Object.entries(D.tokens).filter(([, t]) => t.cap).map(([s, t]) => [s, Number(t.cap)])), gasReserve: D.testnet ? 0 : gasReserve(), gasless: !!sac } : null },
   onChange(f) { listeners.add(f); return () => listeners.delete(f) },
 
+  /** Wallets detected on this device (extensions / in-wallet browsers). */
+  wallets() { globalThis.dispatchEvent?.(new Event('eip6963:requestProvider')); return walletList().map(({ provider, ...w }) => w) },
+  get connectedWallet() { return address ? connectedVia : null },
+  /** Connect a specific wallet: an id from wallets(), or 'walletconnect' for the WalletConnect / Reown list. */
+  async connectWith(id) {
+    if (id === 'walletconnect') {
+      const kit = await initAppKit(); if (address && connectedVia && connectedVia.kind === 'walletconnect') return address
+      await kit.open()
+      return new Promise((res, rej) => {
+        const off = MSChain.onChange((a) => { if (a) { off(); res(a) } })
+        const t = setInterval(() => { if (!kit.isOpen?.() && !address) { clearInterval(t); off(); rej(new Error('CANCELLED')) } }, 800)
+      })
+    }
+    const p = providerFor(id); if (!p) throw new Error('NO_WALLET')
+    const w = walletList().find((x) => x.provider === p)
+    chosenId = (w && (w.rdns || w.id)) || id; try { localStorage.setItem('ms-wallet', chosenId) } catch (e) {}
+    const a = await connectInjected(false, p); if (!a) throw new Error('CANCELLED'); return a
+  },
+  /** Ask the connected browser wallet to switch to (or add) this app's network. */
+  async addNetwork() { const p = injected || eth(); if (!p) throw new Error('NO_WALLET'); await switchChain(p); return true },
   async connect() {
     const dev = globalThis.MS_DEV_KEY
-    if (dev) return useDevKey(dev)
+    if (dev) { connectedVia = { kind: 'dev', name: 'Тестовый ключ', icon: '' }; return useDevKey(dev) }
     if (eth()) { const a = await connectInjected(false); if (a) return a; throw new Error('CANCELLED') }
     const kit = await initAppKit()
     if (address) return address
@@ -385,7 +423,7 @@ const MSChain = {
     if (address) return address
     return new Promise((res) => { const off = MSChain.onChange((a) => { if (a) { off(); res(a) } }); setTimeout(() => { off(); res(address) }, ms) })
   },
-  async disconnect() { try { if (appkit) await appkit.disconnect() } catch (e) {} injected = null; wallet = null; address = null; sac = null; emit() },
+  async disconnect() { try { if (appkit) await appkit.disconnect() } catch (e) {} try { if (injected && injected.request) await injected.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] }) } catch (e) {} connectedVia = null; injected = null; wallet = null; address = null; sac = null; emit() },
   /** true when MoneySafe pays the gas (smart account + paymaster) */
   get gasless() { return !!sac },
   get gaslessConfigured() { return !!BUNDLER },
