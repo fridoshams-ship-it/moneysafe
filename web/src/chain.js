@@ -170,21 +170,46 @@ const dec = (sym) => D.tokens[sym].decimals
 const toUnits = (sym, n) => parseUnits(String(+(+n).toFixed(dec(sym))), dec(sym))
 const fromUnits = (sym, v) => Number(formatUnits(v, dec(sym)))
 
+const COMET = parseAbi(['function getUtilization() view returns (uint64)', 'function getSupplyRate(uint64) view returns (uint64)'])
+const PROTO = parseAbi(['function protocol() view returns (uint8)'])
+const protoName = (p) => (Number(p) === 1 ? 'compound' : 'aave')
+/** Current supply APR (0.042 = 4.2%) for each protocol available for `sym`. */
+async function ratesOf(sym) {
+  const t = D.tokens[sym], out = {}
+  const prot = t.protocols || [0]
+  if (D.pool && prot.includes(0)) {
+    out.aave = await pub.readContract({ address: D.pool, abi: POOL, functionName: 'getReserveData', args: [t.address] }).then((r) => Number(r.currentLiquidityRate) / 1e27).catch(() => 0)
+  }
+  if (t.comet && prot.includes(1)) {
+    out.compound = await pub.readContract({ address: t.comet, abi: COMET, functionName: 'getUtilization' })
+      .then((u) => pub.readContract({ address: t.comet, abi: COMET, functionName: 'getSupplyRate', args: [u] }))
+      .then((r) => (Number(r) / 1e18) * 31536000).catch(() => 0)
+  }
+  return out
+}
+const bestOf = (r) => { const e = Object.entries(r).sort((a, b) => b[1] - a[1])[0]; return e ? { protocol: e[0], apr: e[1] } : { protocol: 'aave', apr: 0 } }
+let lastBest = {}
+async function bestProtocol(sym) {
+  try { const b = bestOf(await ratesOf(sym)); lastBest[sym] = b; return b.protocol === 'compound' ? 1 : 0 } catch (e) { return lastBest[sym]?.protocol === 'compound' ? 1 : 0 }
+}
+
 async function readVault(addr) {
   const c = { address: addr, abi: VAULT }
-  const [asset, owner, unlock, created, principal, bal, earned, withdrawn, wTotal] = await Promise.all(
-    ['asset', 'owner', 'unlockTime', 'createdAt', 'principal', 'balance', 'earned', 'withdrawn', 'withdrawnTotal'].map((f) => pub.readContract({ ...c, functionName: f })))
+  const [asset, owner, unlock, created, principal, bal, earned, withdrawn, wTotal, proto] = await Promise.all(
+    ['asset', 'owner', 'unlockTime', 'createdAt', 'principal', 'balance', 'earned', 'withdrawn', 'withdrawnTotal'].map((f) => pub.readContract({ ...c, functionName: f }))
+      .concat(pub.readContract({ address: addr, abi: PROTO, functionName: 'protocol' }).catch(() => 0)))
   const sym = symOf[asset.toLowerCase()] || '?'
   return { addr, sym, owner, to: Number(unlock) * 1000, from: Number(created) * 1000, q: fromUnits(sym, principal), val: fromUnits(sym, bal),
-    earned: fromUnits(sym, earned), withdrawn, withdrawnTotal: fromUnits(sym, wTotal) }
+    earned: fromUnits(sym, earned), withdrawn, withdrawnTotal: fromUnits(sym, wTotal), proto: protoName(proto) }
 }
 
 async function readAllowance(addr, names) {
   const f = ['asset', 'deposited', 'withdrawnTotal', 'rate', 'period', 'start', 'createdAt', 'lastRateChange', 'checkpointPeriods', 'accruedAtCheckpoint', 'earned', 'closed']
   const r = await Promise.all(f.map((fn) => pub.readContract({ address: addr, abi: ALLOW, functionName: fn })))
   const sym = symOf[r[0].toLowerCase()] || '?', u = (v) => fromUnits(sym, v)
+  const proto = protoName(await pub.readContract({ address: addr, abi: PROTO, functionName: 'protocol' }).catch(() => 0))
   return { addr, sym, total: u(r[1]), wd: u(r[2]), rate: u(r[3]), per: Number(r[4]) === 604800 ? 'w' : 'd', start: Number(r[5]) * 1000, from: Number(r[6]) * 1000,
-    lastRate: Number(r[7]) * 1000, chk: { n: Number(r[8]), acc: u(r[9]) }, earned: u(r[10]), closed: r[11], goal: names[addr.toLowerCase()] || '' }
+    lastRate: Number(r[7]) * 1000, chk: { n: Number(r[8]), acc: u(r[9]) }, earned: u(r[10]), closed: r[11], goal: names[addr.toLowerCase()] || '', proto }
 }
 async function allowanceNames(owner) {
   if (!D.factory) return {}
@@ -242,7 +267,7 @@ const MSChain = {
       pub.readContract({ address: D.factory, abi: FACTORY, functionName: 'vaultsOf', args: [me] }),
       goals({ owner: me }),
       pub.getLogs({ address: D.factory, event: FACTORY[4], args: { from: me }, fromBlock: BigInt(D.block || 0) }),
-      D.pool ? Promise.all(syms.map((s) => pub.readContract({ address: D.pool, abi: POOL, functionName: 'getReserveData', args: [D.tokens[s].address] }).then((r) => Number(r.currentLiquidityRate) / 1e27).catch(() => 0))) : syms.map(() => 0),
+      Promise.all(syms.map((s) => ratesOf(s).catch(() => ({})))),
     ])
     const native = Number(formatUnits(gas, 18))
     const wallet = Object.fromEntries(syms.map((s, i) => [s, fromUnits(s, bals[i]) + (D.tokens[s].wrapped ? Math.max(0, native - GAS_RESERVE) : 0)]))
@@ -250,7 +275,11 @@ const MSChain = {
     const giftAddrs = giftLogs.map((l) => l.args.vault)
     const giftGoals = giftAddrs.length ? await goals({ vault: giftAddrs }) : {}
     const gifts = await Promise.all(giftAddrs.map(async (a) => ({ ...(await readVault(a)), goal: giftGoals[a.toLowerCase()] || '' })))
-    const apr = Object.fromEntries(syms.map((s, i) => [s, rates[i]]))
+    const best = Object.fromEntries(syms.map((s, i) => [s, bestOf(rates[i])]))
+    lastBest = best
+    const apr = Object.fromEntries(syms.map((s) => [s, best[s].apr]))
+    const proto = Object.fromEntries(syms.map((s) => [s, best[s].protocol]))
+    const allRates = Object.fromEntries(syms.map((s, i) => [s, rates[i]]))
     let budgets = []
     try {
       const list = await pub.readContract({ address: D.factory, abi: FACTORY, functionName: 'allowancesOf', args: [me] })
@@ -258,7 +287,7 @@ const MSChain = {
     } catch (e) { /* older factory without budgets */ }
     let chainNow = Date.now()
     try { chainNow = Number((await pub.getBlock({ blockTag: 'latest' })).timestamp) * 1000 } catch (e) {}
-    return { address: me, wallet, gas: Number(formatUnits(gas, 18)), vaults, gifts, budgets, apr, at: Date.now(), chainNow }
+    return { address: me, wallet, gas: Number(formatUnits(gas, 18)), vaults, gifts, budgets, apr, proto, rates: allRates, at: Date.now(), chainNow }
   },
 
   async faucetStatus(sym, who) {
@@ -274,7 +303,7 @@ const MSChain = {
     const allowance = await pub.readContract({ address: token, abi: ERC20, functionName: 'allowance', args: [address, D.factory] })
     if (allowance < amt) { const r = await write({ address: token, abi: ERC20, functionName: 'approve', args: [D.factory, amt] }); onStep(0, r.transactionHash) } else onStep(0, null)
     const r = await write({ address: D.factory, abi: FACTORY, functionName: 'createVaultWith',
-      args: [0, recipient ? getAddress(recipient) : address, token, amt, BigInt(Math.floor(unlockMs / 1000)), String(goal || '').slice(0, 30)] })
+      args: [await bestProtocol(sym), recipient ? getAddress(recipient) : address, token, amt, BigInt(Math.floor(unlockMs / 1000)), String(goal || '').slice(0, 30)] })
     onStep(1, r.transactionHash)
     const ev = parseEventLogs({ abi: FACTORY, logs: r.logs, eventName: 'VaultCreated' })[0]
     const vault = ev ? getAddress(ev.args.vault) : null
@@ -296,7 +325,7 @@ const MSChain = {
     const allowance = await pub.readContract({ address: token, abi: ERC20, functionName: 'allowance', args: [address, D.factory] })
     if (allowance < amt) await write({ address: token, abi: ERC20, functionName: 'approve', args: [D.factory, amt] })
     onStep(0)
-    const rc = await write({ address: D.factory, abi: FACTORY, functionName: 'createAllowance', args: [0, token, amt, r, per === 'w' ? 604800n : 86400n, 0n, String(goal || '').slice(0, 30)] })
+    const rc = await write({ address: D.factory, abi: FACTORY, functionName: 'createAllowance', args: [await bestProtocol(sym), token, amt, r, per === 'w' ? 604800n : 86400n, 0n, String(goal || '').slice(0, 30)] })
     const ev = parseEventLogs({ abi: FACTORY, logs: rc.logs, eventName: 'AllowanceCreated' })[0]
     onStep(1)
     return { hash: rc.transactionHash, budget: ev ? getAddress(ev.args.allowance) : null }
