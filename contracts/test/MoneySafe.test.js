@@ -45,6 +45,8 @@ describe("MoneySafe", function () {
   it("does not allow the owner to withdraw before the date, even one second early", async function () {
     const f = await loadFixture(deploy);
     const { vault, unlock } = await openVault(f, f.alice, usdc(1000), 30n);
+    expect(await vault.timeLeft()).to.be.closeTo(30n * DAY, 5n);
+    expect(await vault.isUnlocked()).to.equal(false);
     await expect(vault.connect(f.alice).withdraw()).to.be.revertedWithCustomError(vault, "StillLocked").withArgs(unlock);
     await time.setNextBlockTimestamp(unlock - 1n);
     await expect(vault.connect(f.alice).withdraw()).to.be.revertedWithCustomError(vault, "StillLocked");

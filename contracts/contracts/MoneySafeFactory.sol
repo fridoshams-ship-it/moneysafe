@@ -160,18 +160,7 @@ contract MoneySafeFactory is Ownable2Step {
         returns (address vault)
     {
         if (depositsPaused) revert DepositsArePaused();
-        address market;
-        address aToken;
-        if (protocol == AAVE) {
-            aToken = aTokenOf[asset];
-            if (aToken == address(0)) revert AssetNotAllowed();
-            market = address(pool);
-        } else if (protocol == COMET) {
-            if (!cometAllowed[asset]) revert AssetNotAllowed();
-            market = cometMarketOf[asset];
-        } else {
-            revert BadProtocol();
-        }
+        (address market, address aToken) = _market(protocol, asset);
         if (amount == 0) revert ZeroAmount();
         uint256 cap = vaultCap[asset];
         if (cap != 0 && amount > cap) revert AboveVaultCap();

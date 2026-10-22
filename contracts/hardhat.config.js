@@ -1,4 +1,5 @@
 require("@nomicfoundation/hardhat-ethers");
+require("solidity-coverage");
 require("@nomicfoundation/hardhat-chai-matchers");
 const path = require("path");
 const { subtask } = require("hardhat/config");

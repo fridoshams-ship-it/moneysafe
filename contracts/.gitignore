@@ -6,3 +6,5 @@ deployments/localhost.json
 deployments/localreal.json
 deployments/hardhat.json
 deployments/fork-dryrun.json
+coverage/
+coverage.json
