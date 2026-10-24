@@ -9,13 +9,13 @@
 
 ## Русский
 
-**Название:** MoneySafe — сейф от себя
-**Подзаголовок (App Store):** Копите без соблазна снять
+**Название:** MoneySafe — сейф-копилка
+**Подзаголовок (App Store):** Защита от импульсивных трат
 **Краткое описание (Google Play):** Заблокируйте крипту до даты или делите сумму по дням. Доход — в Aave.
 **Промо-текст:** Новое: «Деньги на каждый день». Положите сумму, задайте часть на день — и раньше времени её не взять.
 
 **Описание:**
-MoneySafe — сейф от самого себя. Вы блокируете криптовалюту до выбранной даты, и раньше этой даты деньги не откроет никто: ни вы, ни MoneySafe, ни поддержка. Пока деньги ждут, они приносят доход в крупнейших протоколах займов — Aave и Compound.
+MoneySafe — защита от импульсивных трат. Вы блокируете криптовалюту до выбранной даты, и раньше этой даты деньги не откроет никто: ни вы, ни MoneySafe, ни поддержка. Пока деньги ждут, они приносят доход в крупнейших протоколах займов — Aave и Compound.
 
 Сейф до даты
 • Срок — 1, 3, 6 месяцев, год или своя дата и время, до минуты.
@@ -47,13 +47,13 @@ MoneySafe — сейф от самого себя. Вы блокируете к�
 
 ## Oʻzbekcha
 
-**Nomi:** MoneySafe — oʻzingizdan seyf
-**Sarlavha (App Store):** Vasvasasiz jamgʻaring
+**Nomi:** MoneySafe — seyf-jamgʻarma
+**Sarlavha (App Store):** Shoshilinch xarajatdan himoya
 **Qisqa tavsif (Google Play):** Kriptoni sanagacha qulflang yoki summani kunlarga boʻling. Daromad — Aave’da.
 **Promo matn:** Yangi: «Har kunga pul». Summani qoʻying, kunlik qismini belgilang — uni vaqtidan oldin olib boʻlmaydi.
 
 **Tavsif:**
-MoneySafe — oʻzingizdan seyf. Siz kriptovalyutani tanlangan sanagacha qulflaysiz va shu sanagacha pulni hech kim ocholmaydi: na siz, na MoneySafe, na qoʻllab-quvvatlash xizmati. Pul kutayotganda eng yirik qarz protokollari — Aave va Compound’da daromad keltiradi.
+MoneySafe — shoshilinch xarajatlardan himoya. Siz kriptovalyutani tanlangan sanagacha qulflaysiz va shu sanagacha pulni hech kim ocholmaydi: na siz, na MoneySafe, na qoʻllab-quvvatlash xizmati. Pul kutayotganda eng yirik qarz protokollari — Aave va Compound’da daromad keltiradi.
 
 Sanagacha seyf
 • Muddat — 1, 3, 6 oy, bir yil yoki istalgan sana va vaqt, daqiqagacha aniq.
@@ -85,13 +85,13 @@ Muhim: protokollardagi daromad oʻzgaruvchan va kafolatlanmagan. Kriptovalyutala
 
 ## English
 
-**Name:** MoneySafe — Safe From Yourself
-**Subtitle (App Store):** Save without the urge to spend
+**Name:** MoneySafe — Savings Vault
+**Subtitle (App Store):** Guard against impulse spending
 **Short description (Google Play):** Lock crypto until a date or split a sum by days. Earn yield in Aave.
 **Promotional text:** New: “Money for every day”. Put in a sum, set a daily part — and it can’t be taken early.
 
 **Description:**
-MoneySafe is a safe from yourself. You lock crypto until the date you choose, and nobody can open it earlier — not you, not MoneySafe, not support. While the money waits, it earns interest in the largest lending protocols, Aave and Compound.
+MoneySafe protects you from impulse spending. You lock crypto until the date you choose, and nobody can open it earlier — not you, not MoneySafe, not support. While the money waits, it earns interest in the largest lending protocols, Aave and Compound.
 
 Safe until a date
 • 1, 3, 6 months, a year or any date and time, to the minute.
