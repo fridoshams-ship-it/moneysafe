@@ -1364,7 +1364,7 @@ const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator
 function installApp(){if(installEvt){installEvt.prompt();installEvt.userChoice.then(()=>{installEvt=null;$('#installBtn').hidden=true});return}
   gen(`<div class="between"><h2>Установить на экран</h2>${xBtn}</div>${IOS?`<div class="sec-li"><b>1</b><div>Откройте MoneySafe в <b>Safari</b> по ссылке.</div></div><div class="sec-li"><b>2</b><div>Нажмите «Поделиться» — квадрат со стрелкой внизу экрана.</div></div><div class="sec-li"><b>3</b><div>Выберите «На экран Домой» и нажмите «Добавить».</div></div>`
   :`<div class="sec-li"><b>1</b><div>Откройте MoneySafe в <b>Chrome</b> по ссылке.</div></div><div class="sec-li"><b>2</b><div>Нажмите ⋮ в правом верхнем углу.</div></div><div class="sec-li"><b>3</b><div>Выберите «Установить приложение» или «Добавить на главный экран».</div></div>`}<p class="muted small" style="margin-top:8px">После установки MoneySafe открывается с иконки на весь экран и работает без интернета.</p>`)}
-if('serviceWorker' in navigator&&location.protocol==='https:'&&window.top===window&&!/claude\.ai|claudeusercontent/.test(location.host))navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol==='https:'&&window.top===window&&!/claude\.ai|claudeusercontent/.test(location.host)){const had=!!navigator.serviceWorker.controller;let rl=0;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(had&&!rl){rl=1;location.reload()}});navigator.serviceWorker.register('sw.js').then(r=>r.update()).catch(()=>{})}
 
 /* ---------- backup ---------- */
 function exportData(){const name='moneysafe-backup-'+iso(Date.now())+'.json',blob=new Blob([JSON.stringify(S)],{type:'application/json'});
