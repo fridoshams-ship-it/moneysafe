@@ -17,6 +17,8 @@ import {IComet} from "./interfaces/IComet.sol";
 ///           • any change applies from the NEXT period — today's portion is never recalculated.
 ///         The money waits in Aave V3 or Compound III; the yield is released together with the last portion.
 ///         There is no admin function, and nobody — including MoneySafe — can release money faster.
+///         Tokens other than the budget's asset (rewards, mistaken transfers) can be taken by the owner with `rescue`
+///         once the whole budget is released; `rescue` can never move the asset or its market position.
 /// @dev Deployed as an EIP-1167 minimal proxy by MoneySafeFactory.
 contract MoneySafeAllowance is ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -45,6 +47,7 @@ contract MoneySafeAllowance is ReentrancyGuard {
     event Deposited(uint256 amount, uint256 totalDeposited);
     event Withdrawn(address indexed to, uint256 amount, bool fully);
     event RateChanged(uint256 oldRate, uint256 newRate, uint256 effectiveFromPeriod);
+    event Rescued(address indexed token, address indexed to, uint256 amount);
 
     error AlreadyInitialized();
     error OnlyFactory();
@@ -57,6 +60,9 @@ contract MoneySafeAllowance is ReentrancyGuard {
     error RaiseTooSoon(uint64 allowedFrom);
     error SameRate();
     error Closed();
+    error RateAboveDeposit();
+    error NotRescuable();
+    error NotReleasedYet();
 
     constructor() {
         factory = address(0xdead);
@@ -121,11 +127,11 @@ contract MoneySafeAllowance is ReentrancyGuard {
     }
 
     /// @notice What the owner can take right now. After the last portion this includes all earned yield.
+    ///         A closed budget holds nothing; if tokens arrive later by mistake, the owner can still take them.
     function available() public view returns (uint256) {
-        if (closed) return 0;
         uint256 bal = balance();
         uint256 r = released();
-        if (r >= deposited) return bal;
+        if (closed || r >= deposited) return bal;
         uint256 a = r > withdrawnTotal ? r - withdrawnTotal : 0;
         return a > bal ? bal : a;
     }
@@ -164,8 +170,8 @@ contract MoneySafeAllowance is ReentrancyGuard {
         }
         uint256 idle = asset.balanceOf(address(this));
         uint256 out = amount > idle ? idle : amount;
-        asset.safeTransfer(owner, out);
         withdrawnTotal += out;
+        asset.safeTransfer(owner, out);
         bool fully = _marketBalance() == 0 && asset.balanceOf(address(this)) == 0;
         if (fully) closed = true;
         emit Withdrawn(owner, out, fully);
@@ -173,20 +179,36 @@ contract MoneySafeAllowance is ReentrancyGuard {
 
     /// @notice Changes the portion per period, starting from the next period.
     ///         Lowering: any time. Raising: only `RAISE_COOLDOWN` after the last change.
-    function setRate(uint256 newRate) external {
+    function setRate(uint256 newRate) external nonReentrant {
         if (msg.sender != owner) revert NotOwner();
         if (closed) revert Closed();
         if (newRate == 0) revert ZeroAmount();
         if (newRate == rate) revert SameRate();
+        // A portion larger than the whole budget is meaningless, and an absurd value would overflow the schedule
+        // maths and freeze the budget forever. "Everything from the next period" (newRate == deposited) is the maximum.
+        if (newRate > deposited) revert RateAboveDeposit();
         if (newRate > rate && block.timestamp < uint256(lastRateChange) + RAISE_COOLDOWN) {
             revert RaiseTooSoon(lastRateChange + RAISE_COOLDOWN);
         }
         uint256 n = periodsAt(block.timestamp);
-        accruedAtCheckpoint = accruedAtCheckpoint + rate * (n - checkpointPeriods);
+        accruedAtCheckpoint = released(); // capped at `deposited`: unused "virtual" portions never carry over
         checkpointPeriods = n;
         emit RateChanged(rate, newRate, n + 1);
         rate = newRate;
         lastRateChange = uint64(block.timestamp);
+    }
+
+    /// @notice Sends any OTHER token held by this budget (rewards, mistaken transfers) to the owner.
+    ///         Works only once the whole budget is released, so nothing can ever leave ahead of schedule.
+    ///         The asset, its aToken and the market contract itself can never be moved this way.
+    function rescue(IERC20 token) external nonReentrant {
+        if (msg.sender != owner) revert NotOwner();
+        if (!closed && released() < deposited) revert NotReleasedYet();
+        if (token == asset || token == aToken || address(token) == market) revert NotRescuable();
+        uint256 amount = token.balanceOf(address(this));
+        if (amount == 0) revert ZeroAmount();
+        token.safeTransfer(owner, amount);
+        emit Rescued(address(token), owner, amount);
     }
 
     // ---------- views ----------
@@ -196,7 +218,6 @@ contract MoneySafeAllowance is ReentrancyGuard {
     }
 
     function balance() public view returns (uint256) {
-        if (closed) return 0;
         return _marketBalance() + asset.balanceOf(address(this));
     }
 

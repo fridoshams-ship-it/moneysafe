@@ -44,7 +44,8 @@ const FACTORY = parseAbi([
   'function topUpAllowance(address allowance, uint256 amount)',
   'function allowancesOf(address) view returns (address[])',
   'event AllowanceCreated(address indexed owner, address indexed allowance, address indexed asset, uint256 amount, uint256 rate, uint64 period, uint64 start, string goal)',
-  'error AboveVaultCap()', 'error DepositsArePaused()', 'error AssetNotAllowed()', 'error BadUnlockTime()', 'error VaultUnlocked()', 'error RateAboveAmount()', 'error Closed()',
+  'error AboveVaultCap()', 'error DepositsArePaused()', 'error AssetNotAllowed()', 'error BadUnlockTime()', 'error VaultUnlocked()', 'error RateAboveAmount()', 'error Closed()', 'error NotAllowanceOwner()',
+  'function giftedBy(address) view returns (address)',
 ])
 const ALLOW = parseAbi([
   'function asset() view returns (address)', 'function deposited() view returns (uint256)', 'function withdrawnTotal() view returns (uint256)',
@@ -52,7 +53,7 @@ const ALLOW = parseAbi([
   'function createdAt() view returns (uint64)', 'function lastRateChange() view returns (uint64)', 'function checkpointPeriods() view returns (uint256)',
   'function accruedAtCheckpoint() view returns (uint256)', 'function earned() view returns (uint256)', 'function closed() view returns (bool)',
   'function available() view returns (uint256)', 'function withdraw(uint256)', 'function setRate(uint256)',
-  'error MoreThanAvailable(uint256 available)', 'error RaiseTooSoon(uint64 allowedFrom)', 'error SameRate()', 'error Closed()', 'error NotOwner()',
+  'error MoreThanAvailable(uint256 available)', 'error RaiseTooSoon(uint64 allowedFrom)', 'error SameRate()', 'error Closed()', 'error NotOwner()', 'error RateAboveDeposit()',
 ])
 const ALLOW_EV = FACTORY.find((x) => x.type === 'event' && x.name === 'AllowanceCreated')
 const VAULT = parseAbi([

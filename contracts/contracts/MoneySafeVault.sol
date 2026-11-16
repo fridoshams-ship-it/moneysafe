@@ -13,6 +13,8 @@ import {IComet} from "./interfaces/IComet.sol";
 ///         There is NO early withdrawal, NO penalty path, NO admin function and NO way to change the date.
 ///         After `unlockTime` only `owner` can withdraw principal plus all earned yield — in full, or in parts
 ///         if the market temporarily lacks free liquidity.
+///         Tokens other than the vault's asset (rewards, mistaken transfers) can be taken by the owner with `rescue`
+///         after `unlockTime`; `rescue` can never move the asset or its market position.
 /// @dev Deployed as an EIP-1167 minimal proxy by MoneySafeFactory.
 contract MoneySafeVault is ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -34,6 +36,7 @@ contract MoneySafeVault is ReentrancyGuard {
 
     event Deposited(uint256 amount, uint256 totalPrincipal);
     event Withdrawn(address indexed to, uint256 amount, bool fully);
+    event Rescued(address indexed token, address indexed to, uint256 amount);
 
     error AlreadyInitialized();
     error OnlyFactory();
@@ -44,6 +47,7 @@ contract MoneySafeVault is ReentrancyGuard {
     error ZeroAddress();
     error ZeroAmount();
     error BadProtocol();
+    error NotRescuable();
 
     /// @dev Locks the implementation contract so it can never be initialized directly.
     constructor() {
@@ -93,9 +97,10 @@ contract MoneySafeVault is ReentrancyGuard {
     function _withdraw(uint256 amount) internal {
         if (msg.sender != owner) revert NotOwner();
         if (block.timestamp < unlockTime) revert StillLocked(unlockTime);
-        if (withdrawn) revert AlreadyWithdrawn();
-
         uint256 inMarket = _marketBalance();
+        // An emptied vault has nothing to pay. If tokens arrive later by mistake, the owner can still take them.
+        if (withdrawn && inMarket == 0 && asset.balanceOf(address(this)) == 0) revert AlreadyWithdrawn();
+
         if (inMarket > 0) {
             uint256 idleBefore = asset.balanceOf(address(this));
             uint256 need = amount == type(uint256).max ? type(uint256).max : (amount > idleBefore ? amount - idleBefore : 0);
@@ -107,11 +112,24 @@ contract MoneySafeVault is ReentrancyGuard {
         }
         uint256 idle = asset.balanceOf(address(this));
         uint256 out = amount == type(uint256).max || amount > idle ? idle : amount;
-        if (out > 0) asset.safeTransfer(owner, out);
         withdrawnTotal += out;
+        if (out > 0) asset.safeTransfer(owner, out);
         bool fully = _marketBalance() == 0 && asset.balanceOf(address(this)) == 0;
         if (fully) withdrawn = true;
         emit Withdrawn(owner, out, fully);
+    }
+
+    /// @notice Sends any OTHER token held by this vault (rewards, mistaken transfers) to the owner.
+    ///         Works only on or after `unlockTime`, so nothing can ever leave the vault early.
+    ///         The asset, its aToken and the market contract itself can never be moved this way.
+    function rescue(IERC20 token) external nonReentrant {
+        if (msg.sender != owner) revert NotOwner();
+        if (block.timestamp < unlockTime) revert StillLocked(unlockTime);
+        if (token == asset || token == aToken || address(token) == market) revert NotRescuable();
+        uint256 amount = token.balanceOf(address(this));
+        if (amount == 0) revert ZeroAmount();
+        token.safeTransfer(owner, amount);
+        emit Rescued(address(token), owner, amount);
     }
 
     function _marketBalance() internal view returns (uint256) {
@@ -122,7 +140,6 @@ contract MoneySafeVault is ReentrancyGuard {
 
     /// @notice Current value still in the vault (principal + accrued yield − already withdrawn).
     function balance() public view returns (uint256) {
-        if (withdrawn) return 0;
         return _marketBalance() + asset.balanceOf(address(this));
     }
 

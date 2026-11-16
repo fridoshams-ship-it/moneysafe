@@ -39,6 +39,8 @@ contract MoneySafeFactory is Ownable2Step {
     /// @notice Beta limit: max principal per vault for an asset (0 = no limit). Limits NEW deposits only.
     mapping(address asset => uint256) public vaultCap;
     mapping(address vault => bool) public isVault;
+    /// @notice Who paid for a gifted vault (zero for a vault its owner opened). Lets apps tell gifts — and gift spam — apart.
+    mapping(address vault => address payer) public giftedBy;
     mapping(address user => address[]) private _vaultsOf;
     mapping(address allowance => bool) public isAllowance;
     mapping(address user => address[]) private _allowancesOf;
@@ -68,6 +70,7 @@ contract MoneySafeFactory is Ownable2Step {
     error BadPeriod();
     error BadStart();
     error RateAboveAmount();
+    error NotAllowanceOwner();
 
     /// @param pool_ Aave V3 Pool of this chain (zero if Aave is not used on this chain).
     /// @param comets_ Compound III markets of this chain. Each one's base token becomes a possible asset.
@@ -152,6 +155,7 @@ contract MoneySafeFactory is Ownable2Step {
     {
         if (recipient == address(0)) revert ZeroRecipient();
         vault = _create(protocol, recipient, asset, amount, unlockTime, goal);
+        giftedBy[vault] = msg.sender;
         emit VaultGifted(msg.sender, recipient, vault);
     }
 
@@ -187,6 +191,7 @@ contract MoneySafeFactory is Ownable2Step {
         if (amount == 0) revert ZeroAmount();
         MoneySafeVault v = MoneySafeVault(vault);
         if (v.isUnlocked()) revert VaultUnlocked();
+        _market(v.protocol(), address(v.asset())); // reverts if the admin has switched this asset off
         uint256 cap = vaultCap[address(v.asset())];
         if (cap != 0 && v.principal() + amount > cap) revert AboveVaultCap();
 
@@ -222,13 +227,18 @@ contract MoneySafeFactory is Ownable2Step {
     }
 
     /// @notice Adds money to a budget. It is released after what is already scheduled, at the same rate.
+    ///         Only the budget's owner may top it up: a top-up moves the end of the schedule (and the yield that is
+    ///         paid with the last portion), so a stranger must not be able to do it.
     function topUpAllowance(address allowance, uint256 amount) external {
         if (depositsPaused) revert DepositsArePaused();
         if (!isAllowance[allowance]) revert UnknownVault();
         if (amount == 0) revert ZeroAmount();
         MoneySafeAllowance a = MoneySafeAllowance(allowance);
+        if (msg.sender != a.owner()) revert NotAllowanceOwner();
+        _market(a.protocol(), address(a.asset())); // reverts if the admin has switched this asset off
         uint256 cap = vaultCap[address(a.asset())];
-        if (cap != 0 && a.deposited() - a.withdrawnTotal() + amount > cap) revert AboveVaultCap();
+        (uint256 dep, uint256 out) = (a.deposited(), a.withdrawnTotal());
+        if (cap != 0 && (dep > out ? dep - out : 0) + amount > cap) revert AboveVaultCap();
         a.asset().safeTransferFrom(msg.sender, allowance, amount);
         a.supplyIdle();
         emit AllowanceToppedUp(allowance, msg.sender, amount);
@@ -236,6 +246,15 @@ contract MoneySafeFactory is Ownable2Step {
 
     function allowancesOf(address user) external view returns (address[] memory) {
         return _allowancesOf[user];
+    }
+
+    function allowancesCount(address user) external view returns (uint256) {
+        return _allowancesOf[user].length;
+    }
+
+    /// @notice A page of a user's budgets: up to `count` items starting at index `from`.
+    function allowancesSlice(address user, uint256 from, uint256 count) external view returns (address[] memory) {
+        return _slice(_allowancesOf[user], from, count);
     }
 
     function _deployAllowance(uint8 protocol, address asset, uint256 rate, uint64 period, uint64 st) internal returns (address allowance) {
@@ -260,5 +279,23 @@ contract MoneySafeFactory is Ownable2Step {
 
     function vaultsOf(address user) external view returns (address[] memory) {
         return _vaultsOf[user];
+    }
+
+    function vaultsCount(address user) external view returns (uint256) {
+        return _vaultsOf[user].length;
+    }
+
+    /// @notice A page of a user's vaults: up to `count` items starting at index `from`.
+    ///         Anyone can gift a vault, so a list can grow long; pages keep it readable.
+    function vaultsSlice(address user, uint256 from, uint256 count) external view returns (address[] memory) {
+        return _slice(_vaultsOf[user], from, count);
+    }
+
+    function _slice(address[] storage list, uint256 from, uint256 count) private view returns (address[] memory page) {
+        uint256 len = list.length;
+        if (from >= len) return new address[](0);
+        uint256 n = len - from < count ? len - from : count;
+        page = new address[](n);
+        for (uint256 i; i < n; ++i) page[i] = list[from + i];
     }
 }

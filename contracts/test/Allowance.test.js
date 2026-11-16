@@ -112,7 +112,7 @@ describe("Money for every day (MoneySafeAllowance)", function () {
     await expect(f.factory.connect(f.alice).topUpAllowance(await a.getAddress(), usdc(100))).to.be.revertedWithCustomError(a, "Closed");
     const { a: b, start: s2 } = await open(f, f.alice, 100, 20);
     await time.increaseTo(s2 + 10n * DAY);
-    await f.factory.connect(f.bob).topUpAllowance(await b.getAddress(), usdc(60));
+    await f.factory.connect(f.alice).topUpAllowance(await b.getAddress(), usdc(60));
     expect(await b.available()).to.equal(usdc(100)); // old 100 released, the 60 is not
     await time.increaseTo(s2 + 11n * DAY);
     expect(await b.available()).to.equal(usdc(120));
