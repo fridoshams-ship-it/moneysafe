@@ -2,30 +2,30 @@
   "network": "baseSepolia",
   "chainId": 84532,
   "testnet": true,
-  "factory": "0xCA0bDE1117FA6eF9267604a901A780622Ba6d25B",
-  "pool": "0x7173e85551bB194C5f5bEbCcb00b326d502D163e",
-  "block": 48701653,
+  "factory": "0x88d938394Dd8ad88fc22951E19c7B25F935eF7C0",
+  "pool": "0x4e3a335b103A797BFd8001211B2E94c19f01a360",
+  "block": 59634651,
   "tokens": {
     "USDC": {
-      "address": "0x0dE66EEcB74430302B1997Bea346d9511FE1B017",
+      "address": "0xEF417e581e48549A4Ec156a7C1008c0c4896De4d",
       "decimals": 6,
       "faucet": "10000",
       "aprBps": 420
     },
     "USDT": {
-      "address": "0x51483147EEC872061ecfACD79c54ac11147BC077",
+      "address": "0x592663C66Ea8b00De93aF5eC51d074eA73E335f9",
       "decimals": 6,
       "faucet": "10000",
       "aprBps": 390
     },
     "ETH": {
-      "address": "0xe2f072dFB68208aB57B0Be63183Af05ec5f0E3FF",
+      "address": "0x9A9ee4D392f091A6bA1e113818F91094Ef8A5a16",
       "decimals": 18,
       "faucet": "3",
       "aprBps": 210
     },
     "WBTC": {
-      "address": "0x5388635288C91821729055fd3F19d64DDDedb568",
+      "address": "0xa37464156Dbfe354fCD1fDB3a5Dbc565192b0752",
       "decimals": 8,
       "faucet": "0.1",
       "aprBps": 40
